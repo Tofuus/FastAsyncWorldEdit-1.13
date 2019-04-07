@@ -103,152 +103,146 @@ public class SpongeSchematicReader extends NBTSchematicReader {
 
     @Override
     public Clipboard read() throws IOException {
-        return read(UUID.randomUUID());
-    }
-
-    @Override
-    public Clipboard read(UUID uuid) throws IOException {
-        return readVersion1(uuid);
-    }
-    
-    private int width, height, length;
-    private int offsetX, offsetY, offsetZ;
-    private char[] palette;
-    private BlockVector3 min;
-    private FaweClipboard fc;
-
-    private FaweClipboard setupClipboard(int size, UUID uuid) {
-        if (fc != null) {
-            if (fc.getDimensions().getX() == 0) {
-                fc.setDimensions(BlockVector3.at(size, 1, 1));
-            }
-            return fc;
+        NamedTag rootTag = inputStream.readNamedTag();
+        if (!rootTag.getName().equals("Schematic")) {
+            throw new IOException("Tag 'Schematic' does not exist or is not first");
         }
-        if (Settings.IMP.CLIPBOARD.USE_DISK) {
-            return fc = new DiskOptimizedClipboard(size, 1, 1, uuid);
-        } else if (Settings.IMP.CLIPBOARD.COMPRESSION_LEVEL == 0) {
-            return fc = new CPUOptimizedClipboard(size, 1, 1);
+        CompoundTag schematicTag = (CompoundTag) rootTag.getTag();
+
+        // Check
+        Map<String, Tag> schematic = schematicTag.getValue();
+        int version = requireTag(schematic, "Version", IntTag.class).getValue();
+        if (version == 1) {
+            return readVersion1(schematicTag);
+        }
+        throw new IOException("This schematic version is currently not supported");
+    }
+
+    private BlockArrayClipboard readVersion1(CompoundTag schematicTag) throws IOException {
+        BlockVector3 origin;
+        Region region;
+        Map<String, Tag> schematic = schematicTag.getValue();
+        Map<String, Tag> metadata = requireTag(schematic, "Metadata", CompoundTag.class).getValue();
+
+        int width = requireTag(schematic, "Width", ShortTag.class).getValue();
+        int height = requireTag(schematic, "Height", ShortTag.class).getValue();
+        int length = requireTag(schematic, "Length", ShortTag.class).getValue();
+
+        int[] offsetParts = requireTag(schematic, "Offset", IntArrayTag.class).getValue();
+        if (offsetParts.length != 3) {
+            throw new IOException("Invalid offset specified in schematic.");
+        }
+
+        BlockVector3 min = BlockVector3.at(offsetParts[0], offsetParts[1], offsetParts[2]);
+
+        if (metadata.containsKey("WEOffsetX")) {
+            // We appear to have WorldEdit Metadata
+            int offsetX = requireTag(metadata, "WEOffsetX", IntTag.class).getValue();
+            int offsetY = requireTag(metadata, "WEOffsetY", IntTag.class).getValue();
+            int offsetZ = requireTag(metadata, "WEOffsetZ", IntTag.class).getValue();
+            BlockVector3 offset = BlockVector3.at(offsetX, offsetY, offsetZ);
+            origin = min.subtract(offset);
+            region = new CuboidRegion(min, min.add(width, height, length).subtract(BlockVector3.ONE));
         } else {
-            return fc = new MemoryOptimizedClipboard(size, 1, 1);
+            origin = min;
+            region = new CuboidRegion(origin, origin.add(width, height, length).subtract(BlockVector3.ONE));
         }
-    }
-    
-    private Clipboard readVersion1(UUID uuid) throws IOException {
-        width = height = length = offsetX = offsetY = offsetZ = Integer.MIN_VALUE;
 
-        final BlockArrayClipboard clipboard = new BlockArrayClipboard(new CuboidRegion(BlockVector3.at(0, 0, 0), BlockVector3.at(0, 0, 0)), fc);
-        FastByteArrayOutputStream blocksOut = new FastByteArrayOutputStream();
-        FastByteArrayOutputStream biomesOut = new FastByteArrayOutputStream();
+        int paletteMax = requireTag(schematic, "PaletteMax", IntTag.class).getValue();
+        Map<String, Tag> paletteObject = requireTag(schematic, "Palette", CompoundTag.class).getValue();
+        if (paletteObject.size() != paletteMax) {
+            throw new IOException("Differing given palette size to actual size");
+        }
 
-        NBTStreamer streamer = new NBTStreamer(inputStream);
-        streamer.addReader("Schematic.Width", (BiConsumer<Integer, Short>) (i, v) -> width = v);
-        streamer.addReader("Schematic.Height", (BiConsumer<Integer, Short>) (i, v) -> height = v);
-        streamer.addReader("Schematic.Length", (BiConsumer<Integer, Short>) (i, v) -> length = v);
-        streamer.addReader("Schematic.Offset", (BiConsumer<Integer, int[]>) (i, v) -> min = BlockVector3.at(v[0], v[1], v[2]));
-        streamer.addReader("Schematic.Metadata.WEOffsetX", (BiConsumer<Integer, Integer>) (i, v) -> offsetX = v);
-        streamer.addReader("Schematic.Metadata.WEOffsetY", (BiConsumer<Integer, Integer>) (i, v) -> offsetY = v);
-        streamer.addReader("Schematic.Metadata.WEOffsetZ", (BiConsumer<Integer, Integer>) (i, v) -> offsetZ = v);
-        streamer.addReader("Schematic.Palette", (BiConsumer<Integer, HashMap<String, Tag>>) (i, v) -> {
-            palette = new char[v.size()];
-            for (Map.Entry<String, Tag> entry : v.entrySet()) {
-                BlockState state = BlockState.get(entry.getKey());
-                int index = ((IntTag) entry.getValue()).getValue();
-                palette[index] = (char) state.getOrdinal();
+        Map<Integer, BlockState> palette = new HashMap<>();
+
+        ParserContext parserContext = new ParserContext();
+        parserContext.setRestricted(false);
+        parserContext.setTryLegacy(false);
+        parserContext.setPreferringWildcard(false);
+
+        for (String palettePart : paletteObject.keySet()) {
+            int id = requireTag(paletteObject, palettePart, IntTag.class).getValue();
+            BlockState state;
+            try {
+                state = WorldEdit.getInstance().getBlockFactory().parseFromInput(palettePart, parserContext).toImmutableState();
+            } catch (InputParseException e) {
+                throw new IOException("Invalid BlockState in schematic: " + palettePart + ". Are you missing a mod or using a schematic made in a newer version of Minecraft?");
             }
-        });
-        streamer.addReader("Schematic.BlockData.#", new NBTStreamer.LazyReader() {
-            @Override
-            public void accept(Integer arrayLen, DataInputStream dis) {
-                try (FaweOutputStream blocks = new FaweOutputStream(new LZ4BlockOutputStream(blocksOut))) {
-                    IOUtil.copy(dis, blocks, arrayLen);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        });
-        streamer.addReader("Schematic.Biomes.#", new NBTStreamer.LazyReader() {
-            @Override
-            public void accept(Integer arrayLen, DataInputStream dis) {
-                try (FaweOutputStream biomes = new FaweOutputStream(new LZ4BlockOutputStream(biomesOut))) {
-                    IOUtil.copy(dis, biomes, arrayLen);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        });
-        streamer.addReader("Schematic.TileEntities.#", new BiConsumer<Integer, CompoundTag>() {
-            @Override
-            public void accept(Integer index, CompoundTag value) {
-                if (fc == null) {
-                    setupClipboard(0, uuid);
-                }
-                int[] pos = value.getIntArray("Pos");
-                int x = pos[0];
-                int y = pos[1];
-                int z = pos[2];
-                fc.setTile(x, y, z, value);
-            }
-        });
-        streamer.addReader("Schematic.Entities.#", new BiConsumer<Integer, CompoundTag>() {
-            @Override
-            public void accept(Integer index, CompoundTag compound) {
-                if (fc == null) {
-                    setupClipboard(0, uuid);
-                }
-                String id = compound.getString("id");
-                if (id.isEmpty()) {
-                    return;
-                }
-                ListTag positionTag = compound.getListTag("Pos");
-                ListTag directionTag = compound.getListTag("Rotation");
-                EntityType type = EntityTypes.parse(id);
-                if (type != null) {
-                    compound.getValue().put("Id", new StringTag(type.getId()));
-                    BaseEntity state = new BaseEntity(type, compound);
-                    fc.createEntity(clipboard, positionTag.asDouble(0), positionTag.asDouble(1), positionTag.asDouble(2), (float) directionTag.asDouble(0), (float) directionTag.asDouble(1), state);
-                } else {
-                    Fawe.debug("Invalid entity: " + id);
-                }
-            }
-        });
-        streamer.readFully();
-        if (fc == null) setupClipboard(length * width * height, uuid);
-        fc.setDimensions(BlockVector3.at(width, height, length));
-        BlockVector3 origin = min;
-        CuboidRegion region;
-        if (offsetX != Integer.MIN_VALUE && offsetY != Integer.MIN_VALUE  && offsetZ != Integer.MIN_VALUE) {
-            origin = origin.subtract(BlockVector3.at(offsetX, offsetY, offsetZ));
+            palette.put(id, state);
         }
-        region = new CuboidRegion(min, min.add(width, height, length).subtract(BlockVector3.ONE));
-        if (blocksOut.getSize() != 0) {
-            try (FaweInputStream fis = new FaweInputStream(new LZ4BlockInputStream(new FastByteArraysInputStream(blocksOut.toByteArrays())))) {
-                int volume = width * height * length;
-                if (palette.length < 128) {
-                    for (int index = 0; index < volume; index++) {
-                        BlockState state = BlockTypes.states[palette[fis.read()]];
-                        fc.setBlock(index, state);
-                    }
-                } else {
-                    for (int index = 0; index < volume; index++) {
-                        BlockState state = BlockTypes.states[palette[fis.readVarInt()]];
-                        fc.setBlock(index, state);
-                    }
-                }
+
+        byte[] blocks = requireTag(schematic, "BlockData", ByteArrayTag.class).getValue();
+
+        Map<BlockVector3, Map<String, Tag>> tileEntitiesMap = new HashMap<>();
+        ListTag tileEntities = getTag(schematic, "TileEntities", ListTag.class);
+        if (tileEntities != null) {
+            List<Map<String, Tag>> tileEntityTags = tileEntities.getValue().stream()
+                    .map(tag -> (CompoundTag) tag)
+                    .map(CompoundTag::getValue)
+                    .collect(Collectors.toList());
+
+            for (Map<String, Tag> tileEntity : tileEntityTags) {
+                int[] pos = requireTag(tileEntity, "Pos", IntArrayTag.class).getValue();
+                tileEntitiesMap.put(BlockVector3.at(pos[0], pos[1], pos[2]), tileEntity);
             }
         }
-        if (biomesOut.getSize() != 0) {
-            try (FaweInputStream fis = new FaweInputStream(new LZ4BlockInputStream(new FastByteArraysInputStream(biomesOut.toByteArrays())))) {
-                int volume = width * length;
-                for (int index = 0; index < volume; index++) {
-                    fc.setBiome(index, BiomeTypes.get(fis.read()));
-                }
-            }
-        }
-        clipboard.init(region, fc);
+
+        BlockArrayClipboard clipboard = new BlockArrayClipboard(region);
         clipboard.setOrigin(origin);
+
+        int index = 0;
+        int i = 0;
+        int value = 0;
+        int varintLength = 0;
+        while (i < blocks.length) {
+            value = 0;
+            varintLength = 0;
+
+            while (true) {
+                value |= (blocks[i] & 127) << (varintLength++ * 7);
+                if (varintLength > 5) {
+                    throw new RuntimeException("VarInt too big (probably corrupted data)");
+                }
+                if ((blocks[i] & 128) != 128) {
+                    i++;
+                    break;
+                }
+                i++;
+            }
+            // index = (y * length + z) * width + x
+            int y = index / (width * length);
+            int z = (index % (width * length)) / width;
+            int x = (index % (width * length)) % width;
+            BlockState state = palette.get(value);
+            BlockVector3 pt = BlockVector3.at(x, y, z);
+            try {
+                if (tileEntitiesMap.containsKey(pt)) {
+                    Map<String, Tag> values = Maps.newHashMap(tileEntitiesMap.get(pt));
+                    for (NBTCompatibilityHandler handler : COMPATIBILITY_HANDLERS) {
+                        if (handler.isAffectedBlock(state)) {
+                            handler.updateNBT(state, values);
+                        }
+                    }
+                    values.put("x", new IntTag(pt.getBlockX()));
+                    values.put("y", new IntTag(pt.getBlockY()));
+                    values.put("z", new IntTag(pt.getBlockZ()));
+                    values.put("id", values.get("Id"));
+                    values.remove("Id");
+                    values.remove("Pos");
+                    clipboard.setBlock(clipboard.getMinimumPoint().add(pt), state.toBaseBlock(new CompoundTag(values)));
+                } else {
+                    clipboard.setBlock(clipboard.getMinimumPoint().add(pt), state);
+                }
+            } catch (WorldEditException e) {
+                throw new IOException("Failed to load a block in the schematic");
+            }
+
+            index++;
+        }
+
         return clipboard;
     }
-
 
     @Override
     public void close() throws IOException {

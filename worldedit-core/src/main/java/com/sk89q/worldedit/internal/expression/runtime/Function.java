@@ -36,16 +36,14 @@ public class Function extends Node {
      * for the same inputs and on functions with side-effects.
      */
     @Retention(RetentionPolicy.RUNTIME)
-    public @interface Dynamic {
-    }
+    public @interface Dynamic { }
 
-    public final Method method;
-    public final RValue[] args;
+    final Method method;
+    final RValue[] args;
 
-    public Function(int position, Method method, RValue... args) {
+    Function(int position, Method method, RValue... args) {
         super(position);
         this.method = method;
-        this.method.setAccessible(true);
         this.args = args;
     }
 
@@ -54,7 +52,7 @@ public class Function extends Node {
         return invokeMethod(method, args);
     }
 
-    public static double invokeMethod(Method method, Object[] args) throws EvaluationException {
+    protected static double invokeMethod(Method method, Object[] args) throws EvaluationException {
         try {
             return (Double) method.invoke(null, args);
         } catch (InvocationTargetException e) {
@@ -120,6 +118,5 @@ public class Function extends Node {
 
         return this;
     }
-
 
 }

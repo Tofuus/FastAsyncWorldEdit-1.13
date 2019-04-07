@@ -54,13 +54,10 @@ public class MaskUnion extends MaskIntersection {
     }
 
     @Override
-    public Function<Map.Entry<Mask, Mask>, Mask> pairingFunction() {
-        return input -> input.getKey().or(input.getValue());
-    }
-
-    @Override
     public boolean test(BlockVector3 vector) {
-        for (Mask mask : getMasksArray()) {
+        Collection<Mask> masks = getMasks();
+
+        for (Mask mask : masks) {
             if (mask.test(vector)) {
                 return true;
             }

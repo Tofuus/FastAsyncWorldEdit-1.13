@@ -56,27 +56,19 @@ public class SimpleDispatcher implements Dispatcher {
     @Override
     public void registerCommand(CommandCallable callable, String... alias) {
         CommandMapping mapping = new SimpleCommandMapping(callable, alias);
-
+        
         // Check for replacements
         for (String a : alias) {
             String lower = a.toLowerCase();
-            CommandMapping existing = commands.get(lower);
-            if (existing != null) {
-                CommandCallable existingCallable = existing.getCallable();
-                if (existingCallable instanceof Dispatcher && callable instanceof Dispatcher) {
-                    Dispatcher existingDispatcher = (Dispatcher) existingCallable;
-                    Dispatcher newDispatcher = (Dispatcher) callable;
-                    for (CommandMapping add : newDispatcher.getCommands()) {
-                        existingDispatcher.registerCommand(add.getCallable(), add.getAllAliases());
-                    }
-                    continue;
-                } else {
-                    Fawe.debug("Replacing commands is currently undefined behavior: " + StringMan.getString(alias));
-                    commands.put(lower, mapping);
-                    continue;
-                }
+            if (commands.containsKey(lower)) {
+                throw new IllegalArgumentException(
+                        "Replacing commands is currently undefined behavior");
             }
-            commands.putIfAbsent(lower, mapping);
+        }
+        
+        for (String a : alias) {
+            String lower = a.toLowerCase();
+            commands.put(lower, mapping);
         }
     }
 
@@ -84,12 +76,12 @@ public class SimpleDispatcher implements Dispatcher {
     public Set<CommandMapping> getCommands() {
         return Collections.unmodifiableSet(new HashSet<>(commands.values()));
     }
-
+    
     @Override
     public Set<String> getAliases() {
         return Collections.unmodifiableSet(commands.keySet());
     }
-
+    
     @Override
     public Set<String> getPrimaryAliases() {
         Set<String> aliases = new HashSet<>();
@@ -116,7 +108,7 @@ public class SimpleDispatcher implements Dispatcher {
             throw new CommandPermissionsException();
         }
 
-        String[] split = arguments.split(" ", -1);
+        String[] split = CommandContext.split(arguments);
         Set<String> aliases = getPrimaryAliases();
 
         if (aliases.isEmpty()) {
@@ -146,7 +138,7 @@ public class SimpleDispatcher implements Dispatcher {
 
     @Override
     public List<String> getSuggestions(String arguments, CommandLocals locals) throws CommandException {
-        String[] split = arguments.split(" ", -1);
+        String[] split = CommandContext.split(arguments);
 
         if (split.length <= 1) {
             String prefix = split.length > 0 ? split[0] : "";
@@ -185,7 +177,13 @@ public class SimpleDispatcher implements Dispatcher {
 
     @Override
     public boolean testPermission(CommandLocals locals) {
-        // Checking every perm in the class here was unnecessarily stupid
-        return true;
+        for (CommandMapping mapping : getCommands()) {
+            if (mapping.getCallable().testPermission(locals)) {
+                return true;
+            }
+        }
+
+        return false;
     }
+
 }

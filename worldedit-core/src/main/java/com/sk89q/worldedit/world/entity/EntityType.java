@@ -22,7 +22,7 @@ package com.sk89q.worldedit.world.entity;
 import com.sk89q.worldedit.registry.RegistryItem;
 import com.sk89q.worldedit.registry.NamespacedRegistry;
 
-public class EntityType implements RegistryItem {
+public class EntityType {
 
     public static final NamespacedRegistry<EntityType> REGISTRY = new NamespacedRegistry<>("entity type");
 
@@ -38,18 +38,6 @@ public class EntityType implements RegistryItem {
 
     public String getId() {
         return this.id;
-    }
-
-    private int internalId;
-
-    @Override
-    public void setInternalId(int internalId) {
-        this.internalId = internalId;
-    }
-
-    @Override
-    public int getInternalId() {
-        return internalId;
     }
 
     /**

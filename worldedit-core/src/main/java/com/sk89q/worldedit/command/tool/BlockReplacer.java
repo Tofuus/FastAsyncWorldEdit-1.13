@@ -53,10 +53,15 @@ public class BlockReplacer implements DoubleActionBlockTool {
     public boolean actPrimary(Platform server, LocalConfiguration config, Player player, LocalSession session, com.sk89q.worldedit.util.Location clicked) {
         BlockBag bag = session.getBlockBag(player);
 
-        EditSession editSession = session.createEditSession(player);
-
-        try {
-            editSession.setBlock(clicked.toBlockPoint(), pattern);
+        try (EditSession editSession = session.createEditSession(player)) {
+            try {
+                editSession.disableBuffering();
+                BlockVector3 position = clicked.toVector().toBlockPoint();
+                editSession.setBlock(position, pattern.apply(position));
+            } catch (MaxChangedBlocksException ignored) {
+            } finally {
+                session.remember(editSession);
+            }
         } finally {
             if (bag != null) {
                 bag.flushChanges();
@@ -69,13 +74,11 @@ public class BlockReplacer implements DoubleActionBlockTool {
 
     @Override
     public boolean actSecondary(Platform server, LocalConfiguration config, Player player, LocalSession session, com.sk89q.worldedit.util.Location clicked) {
-        EditSession editSession = session.createEditSession(player);
-        BlockStateHolder targetBlock = (editSession).getBlock(clicked.toBlockPoint());
-        BlockType type = targetBlock.getBlockType();
+        BlockState targetBlock = player.getWorld().getBlock(clicked.toVector().toBlockPoint());
 
-        if (type != null) {
-            this.pattern = targetBlock;
-            player.print("Replacer tool switched to: " + type.getName());
+        if (targetBlock != null) {
+            pattern = new BlockPattern(targetBlock);
+            player.print("Replacer tool switched to: " + targetBlock.getBlockType().getName());
         }
 
         return true;

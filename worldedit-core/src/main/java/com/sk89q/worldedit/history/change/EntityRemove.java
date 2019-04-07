@@ -32,8 +32,8 @@ import static com.google.common.base.Preconditions.checkNotNull;
  */
 public class EntityRemove implements Change {
 
-    public final Location location;
-    public final BaseEntity state;
+    private final Location location;
+    private final BaseEntity state;
     private Entity entity;
 
     /**
@@ -47,10 +47,6 @@ public class EntityRemove implements Change {
         checkNotNull(state);
         this.location = location;
         this.state = state;
-    }
-
-    public Entity getEntity() {
-        return entity;
     }
 
     @Override

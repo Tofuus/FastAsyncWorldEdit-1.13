@@ -98,27 +98,18 @@ public final class CommandManager {
 
     private final WorldEdit worldEdit;
     private final PlatformManager platformManager;
-    private volatile Dispatcher dispatcher;
-    private volatile Platform platform;
+    private final Dispatcher dispatcher;
     private final DynamicStreamHandler dynamicHandler = new DynamicStreamHandler();
     private final ExceptionConverter exceptionConverter;
-
-    private ParametricBuilder builder;
-    private Map<Object, String[]> methodMap;
-    private Map<CommandCallable, String[][]> commandMap;
-
-    private static CommandManager INSTANCE;
 
     /**
      * Create a new instance.
      *
      * @param worldEdit the WorldEdit instance
      */
-    public CommandManager(final WorldEdit worldEdit, PlatformManager platformManager) {
+    CommandManager(final WorldEdit worldEdit, PlatformManager platformManager) {
         checkNotNull(worldEdit);
         checkNotNull(platformManager);
-        INSTANCE = this;
-
         this.worldEdit = worldEdit;
         this.platformManager = platformManager;
         this.exceptionConverter = new WorldEditExceptionConverter(worldEdit);
@@ -128,190 +119,74 @@ public final class CommandManager {
 
         // Setup the logger
         commandLog.addHandler(dynamicHandler);
-        dynamicHandler.setFormatter(new LogFormat());
 
         // Set up the commands manager
-        builder = new ParametricBuilder();
+        ParametricBuilder builder = new ParametricBuilder();
         builder.setAuthorizer(new ActorAuthorizer());
         builder.setDefaultCompleter(new UserCommandCompleter(platformManager));
         builder.addBinding(new WorldEditBinding(worldEdit));
-
-        builder.addBinding(new PatternBinding(worldEdit), com.sk89q.worldedit.function.pattern.Pattern.class);
-        builder.addBinding(new MaskBinding(worldEdit), com.sk89q.worldedit.function.mask.Mask.class);
-
         builder.addInvokeListener(new LegacyCommandsHandler());
         builder.addInvokeListener(new CommandLoggingHandler(worldEdit, commandLog));
 
-        this.methodMap = new ConcurrentHashMap<>();
-        this.commandMap = new ConcurrentHashMap<>();
-
-        try {
-            Class.forName("com.intellectualcrafters.plot.PS");
-            CFICommand cfi = new CFICommand(worldEdit, builder);
-            registerCommands(cfi);
-        } catch (ClassNotFoundException e) {}
-    }
-
-    /**
-     * Register all the methods in the class as commands<br>
-     * - You should try to register commands during startup
-     *
-     * @param clazz The class containing all the commands
-     */
-    public void registerCommands(Object clazz) {
-        registerCommands(clazz, new String[0]);
-    }
-
-    /**
-     * Create a command with the provided aliases and register all methods of the class as sub commands.<br>
-     * - You should try to register commands during startup
-     *
-     * @param clazz   The class containing all the sub command methods
-     * @param aliases The aliases to give the command
-     */
-    public void registerCommands(Object clazz, String... aliases) {
-        if (platform != null) {
-            if (aliases.length == 0) {
-                builder.registerMethodsAsCommands(dispatcher, clazz);
-            } else {
-                DispatcherNode graph = new CommandGraph().builder(builder).commands();
-                graph = graph.registerMethods(clazz);
-                dispatcher.registerCommand(graph.graph().getDispatcher(), aliases);
-            }
-            platform.registerCommands(dispatcher);
-        } else {
-            methodMap.put(clazz, aliases);
-        }
-    }
-
-    /**
-     * Create a command with the provided aliases and register all methods of the class as sub commands.<br>
-     * - You should try to register commands during startup
-     *
-     * @param clazz   The class containing all the sub command methods
-     * @param aliases The aliases to give the command
-     */
-    public void registerCommands(Object clazz, CallableProcessor processor, String... aliases) {
-        if (platform != null) {
-            if (aliases.length == 0) {
-                builder.registerMethodsAsCommands(dispatcher, clazz, processor);
-            } else {
-                DispatcherNode graph = new CommandGraph().builder(builder).commands();
-                graph = graph.registerMethods(clazz, processor);
-                dispatcher.registerCommand(graph.graph().getDispatcher(), aliases);
-            }
-            platform.registerCommands(dispatcher);
-        } else {
-            methodMap.put(clazz, aliases);
-        }
-    }
-
-    public void registerCommand(String[] aliases, Command command, CommandCallable callable) {
-        if (platform != null) {
-            if (aliases.length == 0) {
-                dispatcher.registerCommand(callable, command.aliases());
-            } else {
-                DispatcherNode graph = new CommandGraph().builder(builder).commands();
-                graph = graph.register(callable, command.aliases());
-                dispatcher.registerCommand(graph.graph().getDispatcher(), aliases);
-            }
-            platform.registerCommands(dispatcher);
-        } else {
-            commandMap.putIfAbsent(callable, new String[][] {aliases, command.aliases()});
-        }
-    }
-
-    public ParametricBuilder getBuilder() {
-        return builder;
-    }
-
-    /**
-     * Initialize the dispatcher
-     */
-    public void setupDispatcher() {
-        DispatcherNode graph = new CommandGraph().builder(builder).commands();
-
-        for (Map.Entry<Object, String[]> entry : methodMap.entrySet()) {
-            // add  command
-            String[] aliases = entry.getValue();
-            if (aliases.length == 0) {
-                graph = graph.registerMethods(entry.getKey());
-            } else {
-                graph = graph.group(aliases).registerMethods(entry.getKey()).parent();
-            }
-        }
-
-        for (Map.Entry<CommandCallable, String[][]> entry : commandMap.entrySet()) {
-            String[][] aliases = entry.getValue();
-            CommandCallable callable = entry.getKey();
-            if (aliases[0].length == 0) {
-                graph = graph.register(callable, aliases[1]);
-            } else {
-                graph = graph.group(aliases[0]).register(callable, aliases[1]).parent();
-            }
-        }
-
-        commandMap.clear();
-        methodMap.clear();
-
-        dispatcher = graph
-                .group("/anvil")
-                .describeAs("Anvil command")
-                .registerMethods(new AnvilCommands(worldEdit)).parent()
-                .registerMethods(new BiomeCommands(worldEdit))
-                .registerMethods(new ChunkCommands(worldEdit))
-                .registerMethods(new ClipboardCommands(worldEdit))
-                .registerMethods(new OptionsCommands(worldEdit))
-                .registerMethods(new GenerationCommands(worldEdit))
-                .registerMethods(new HistoryCommands(worldEdit))
-                .registerMethods(new NavigationCommands(worldEdit))
-                .registerMethods(new RegionCommands(worldEdit))
-                .registerMethods(new ScriptingCommands(worldEdit))
-                .registerMethods(new SelectionCommands(worldEdit))
-                .registerMethods(new SnapshotUtilCommands(worldEdit))
-                .registerMethods(new BrushOptionsCommands(worldEdit))
-                .registerMethods(new ToolCommands(worldEdit))
-                .registerMethods(new UtilityCommands(worldEdit))
-                .registerSubMethods(new WorldEditCommands(worldEdit))
-                .registerSubMethods(new SchematicCommands(worldEdit))
-                .registerSubMethods(new SnapshotCommands(worldEdit))
-                .groupAndDescribe(BrushCommands.class)
-                .registerMethods(new BrushCommands(worldEdit))
-                .registerMethods(new ToolCommands(worldEdit))
-                .registerMethods(new BrushOptionsCommands(worldEdit))
-                .register(adapt(new ShapedBrushCommand(new DeformCommand(), "worldedit.brush.deform")), "deform")
-                .register(adapt(new ShapedBrushCommand(new ApplyCommand(new ReplaceParser(), "Set all blocks within region"), "worldedit.brush.set")), "set")
-                .register(adapt(new ShapedBrushCommand(new PaintCommand(), "worldedit.brush.paint")), "paint")
-                .register(adapt(new ShapedBrushCommand(new ApplyCommand(), "worldedit.brush.apply")), "apply")
-                .register(adapt(new ShapedBrushCommand(new PaintCommand(new TreeGeneratorParser("treeType")), "worldedit.brush.forest")), "forest")
-                .register(adapt(new ShapedBrushCommand(ProvidedValue.create(new Deform("y-=1", Mode.RAW_COORD), "Raise one block"), "worldedit.brush.raise")), "raise")
-                .register(adapt(new ShapedBrushCommand(ProvidedValue.create(new Deform("y+=1", Mode.RAW_COORD), "Lower one block"), "worldedit.brush.lower")), "lower")
-                .parent()
-                .group("superpickaxe", "pickaxe", "sp").describeAs("Super-pickaxe commands")
-                .registerMethods(new SuperPickaxeCommands(worldEdit))
-                .parent().graph().getDispatcher();
-        if (platform != null) {
-            platform.registerCommands(dispatcher);
-        }
-    }
-
-    public static CommandManager getInstance() {
-        return INSTANCE;
+        dispatcher = new CommandGraph()
+                .builder(builder)
+                    .commands()
+                        .registerMethods(new BiomeCommands(worldEdit))
+                        .registerMethods(new ChunkCommands(worldEdit))
+                        .registerMethods(new ClipboardCommands(worldEdit))
+                        .registerMethods(new GeneralCommands(worldEdit))
+                        .registerMethods(new GenerationCommands(worldEdit))
+                        .registerMethods(new HistoryCommands(worldEdit))
+                        .registerMethods(new NavigationCommands(worldEdit))
+                        .registerMethods(new RegionCommands(worldEdit))
+                        .registerMethods(new ScriptingCommands(worldEdit))
+                        .registerMethods(new SelectionCommands(worldEdit))
+                        .registerMethods(new SnapshotUtilCommands(worldEdit))
+                        .registerMethods(new ToolUtilCommands(worldEdit))
+                        .registerMethods(new ToolCommands(worldEdit))
+                        .registerMethods(new UtilityCommands(worldEdit))
+                        .register(adapt(new SelectionCommand(new ApplyCommand(new ReplaceParser(), "Set all blocks within selection"), "worldedit.region.set")), "/set")
+                        .group("worldedit", "we")
+                            .describeAs("WorldEdit commands")
+                            .registerMethods(new WorldEditCommands(worldEdit))
+                            .parent()
+                        .group("schematic", "schem", "/schematic", "/schem")
+                            .describeAs("Schematic commands for saving/loading areas")
+                            .registerMethods(new SchematicCommands(worldEdit))
+                            .parent()
+                        .group("snapshot", "snap")
+                            .describeAs("Schematic commands for saving/loading areas")
+                            .registerMethods(new SnapshotCommands(worldEdit))
+                            .parent()
+                        .group("brush", "br")
+                            .describeAs("Brushing commands")
+                            .registerMethods(new BrushCommands(worldEdit))
+                            .register(adapt(new ShapedBrushCommand(new DeformCommand(), "worldedit.brush.deform")), "deform")
+                            .register(adapt(new ShapedBrushCommand(new ApplyCommand(new ReplaceParser(), "Set all blocks within region"), "worldedit.brush.set")), "set")
+                            .register(adapt(new ShapedBrushCommand(new PaintCommand(), "worldedit.brush.paint")), "paint")
+                            .register(adapt(new ShapedBrushCommand(new ApplyCommand(), "worldedit.brush.apply")), "apply")
+                            .register(adapt(new ShapedBrushCommand(new PaintCommand(new TreeGeneratorParser("treeType")), "worldedit.brush.forest")), "forest")
+                            .register(adapt(new ShapedBrushCommand(ProvidedValue.create(new Deform("y-=1", Mode.RAW_COORD), "Raise one block"), "worldedit.brush.raise")), "raise")
+                            .register(adapt(new ShapedBrushCommand(ProvidedValue.create(new Deform("y+=1", Mode.RAW_COORD), "Lower one block"), "worldedit.brush.lower")), "lower")
+                        .parent()
+                        .group("superpickaxe", "pickaxe", "sp")
+                            .describeAs("Super-pickaxe commands")
+                            .registerMethods(new SuperPickaxeCommands(worldEdit))
+                            .parent()
+                        .group("tool")
+                            .describeAs("Bind functions to held items")
+                            .registerMethods(new ToolCommands(worldEdit))
+                            .parent()
+                        .graph()
+                .getDispatcher();
     }
 
     public ExceptionConverter getExceptionConverter() {
         return exceptionConverter;
     }
 
-    public void register(Platform platform) {
+    void register(Platform platform) {
         log.info("Registering commands with " + platform.getClass().getCanonicalName());
-        this.platform = null;
-
-        try {
-            new CommandScriptLoader().load();
-        } catch (Throwable e) {
-            e.printStackTrace();
-        }
 
         LocalConfiguration config = platform.getConfiguration();
         boolean logging = config.logCommands;
@@ -332,13 +207,14 @@ public final class CommandManager {
             } catch (IOException e) {
                 log.warn("Could not use command log file " + path + ": " + e.getMessage());
             }
+
+            dynamicHandler.setFormatter(new LogFormat(config.logFormat));
         }
 
-        this.platform = platform;
-        setupDispatcher();
+        platform.registerCommands(dispatcher);
     }
 
-    public void unregister() {
+    void unregister() {
         dynamicHandler.setHandler(null);
     }
 
@@ -366,18 +242,19 @@ public final class CommandManager {
         return split;
     }
 
-    public void handleCommandOnCurrentThread(CommandEvent event) {
+    @Subscribe
+    public void handleCommand(CommandEvent event) {
+        Request.reset();
+
         Actor actor = platformManager.createProxyActor(event.getActor());
-        final String args = event.getArguments();
-        final String[] split = commandDetection(args.split(" "));
+        String[] split = commandDetection(event.getArguments().split(" "));
+
         // No command found!
         if (!dispatcher.contains(split[0])) {
             return;
         }
-        if (!actor.isPlayer()) {
-            actor = FakePlayer.wrap(actor.getName(), actor.getUniqueId(), actor);
-        }
-        final LocalSession session = worldEdit.getSessionManager().get(actor);
+
+        LocalSession session = worldEdit.getSessionManager().get(actor);
         Request.request().setSession(session);
         if (actor instanceof Entity) {
             Extent extent = ((Entity) actor).getExtent();
@@ -386,164 +263,84 @@ public final class CommandManager {
             }
         }
         LocalConfiguration config = worldEdit.getConfiguration();
-        final CommandLocals locals = new CommandLocals();
-        final FawePlayer fp = FawePlayer.wrap(actor);
-        if (fp == null) {
-            throw new IllegalArgumentException("FAWE doesn't support: " + actor);
-        }
-        final Set<String> failedPermissions = new LinkedHashSet<>();
-        locals.put("failed_permissions", failedPermissions);
-        locals.put(LocalSession.class, session);
-        if (actor instanceof Player) {
-            Player player = (Player) actor;
-            Player unwrapped = LocationMaskedPlayerWrapper.unwrap(player);
-            actor = new LocationMaskedPlayerWrapper((Player) unwrapped, player.getLocation(), true) {
-                @Override
-                public boolean hasPermission(String permission) {
-                    if (!super.hasPermission(permission)) {
-                        failedPermissions.add(permission);
-                        return false;
-                    }
-                    return true;
-                }
 
-                @Override
-                public void checkPermission(String permission) throws AuthorizationException {
-                    try {
-                        super.checkPermission(permission);
-                    } catch (AuthorizationException e) {
-                        failedPermissions.add(permission);
-                        throw e;
-                    }
-                }
-            };
-        }
+        CommandLocals locals = new CommandLocals();
         locals.put(Actor.class, actor);
-        final Actor finalActor = actor;
-        locals.put("arguments", args);
+        locals.put("arguments", event.getArguments());
 
-        ThrowableSupplier<Throwable> task =
-            () -> dispatcher.call(Joiner.on(" ").join(split), locals, new String[0]);
-
-        handleCommandTask(task, locals, actor, session, failedPermissions, fp);
-    }
-
-    public Object handleCommandTask(ThrowableSupplier<Throwable> task, CommandLocals locals) {
-        return handleCommandTask(task, locals, null, null, null, null);
-    }
-
-    private Object handleCommandTask(ThrowableSupplier<Throwable> task, CommandLocals locals, @Nullable
-        Actor actor, @Nullable LocalSession session, @Nullable Set<String> failedPermissions, @Nullable FawePlayer fp) {
-        Request.reset();
-        if (actor == null) actor = locals.get(Actor.class);
-        if (session == null) session = locals.get(LocalSession.class);
         long start = System.currentTimeMillis();
+
         try {
             // This is a bit of a hack, since the call method can only throw CommandExceptions
             // everything needs to be wrapped at least once. Which means to handle all WorldEdit
             // exceptions without writing a hook into every dispatcher, we need to unwrap these
             // exceptions and rethrow their converted form, if their is one.
             try {
-                Request.request().setActor(actor);
-                return task.get();
+                dispatcher.call(Joiner.on(" ").join(split), locals, new String[0]);
             } catch (Throwable t) {
                 // Use the exception converter to convert the exception if any of its causes
                 // can be converted, otherwise throw the original exception
                 Throwable next = t;
-                exceptionConverter.convert(next);
-                while (next.getCause() != null) {
-                    next = next.getCause();
+                do {
                     exceptionConverter.convert(next);
-                }
-                throw next;
+                    next = next.getCause();
+                } while (next != null);
+
+                throw t;
             }
         } catch (CommandPermissionsException e) {
-            if (failedPermissions == null) failedPermissions = (Set<String>) locals.get("failed_permissions");
-            if (failedPermissions != null) BBC.NO_PERM.send(actor, StringMan.join(failedPermissions, " "));
+            actor.printError("You are not permitted to do that. Are you in the right mode?");
         } catch (InvalidUsageException e) {
             if (e.isFullHelpSuggested()) {
-                CommandCallable cmd = e.getCommand();
-                if (cmd instanceof Dispatcher) {
-                    try {
-                        String args = locals.get("arguments") + "";
-                        CommandContext context = new CommandContext(("ignoreThis " + args).split(" "), new HashSet<>(), false, locals);
-                        UtilityCommands.help(context, worldEdit, actor);
-                    } catch (CommandException e1) {
-                        e1.printStackTrace();
-                    }
-                } else {
-                    if (fp == null) fp = FawePlayer.wrap(actor);
-                    new UsageMessage(cmd, e.getCommandUsed((WorldEdit.getInstance().getConfiguration().noDoubleSlash ? "" : "/"), ""), locals).send(fp);
-                }
+                actor.printRaw(ColorCodeBuilder.asColorCodes(new CommandUsageBox(e.getCommand(), e.getCommandUsed("/", ""), locals)));
                 String message = e.getMessage();
                 if (message != null) {
                     actor.printError(message);
                 }
             } else {
                 String message = e.getMessage();
-                actor.printRaw(BBC.getPrefix() + (message != null ? message : "The command was not used properly (no more help available)."));
-                BBC.COMMAND_SYNTAX.send(actor, e.getSimpleUsageString("/"));
+                actor.printError(message != null ? message : "The command was not used properly (no more help available).");
+                actor.printError("Usage: " + e.getSimpleUsageString("/"));
             }
+        } catch (WrappedCommandException e) {
+            Throwable t = e.getCause();
+            actor.printError("Please report this error: [See console]");
+            actor.printRaw(t.getClass().getName() + ": " + t.getMessage());
+            log.error("An unexpected error while handling a WorldEdit command", t);
         } catch (CommandException e) {
             String message = e.getMessage();
             if (message != null) {
-                actor.printError(BBC.getPrefix() + e.getMessage());
+                actor.printError(e.getMessage());
             } else {
-                actor.printError(BBC.getPrefix() + "An unknown FAWE error has occurred! Please see console.");
-                log.error("An unknown FAWE error occurred", e);
-            }
-        } catch (Throwable e) {
-            Exception faweException = FaweException.get(e);
-            String message = e.getMessage();
-            if (faweException != null) {
-                BBC.WORLDEDIT_CANCEL_REASON.send(actor, faweException.getMessage());
-            } else {
-                actor.printError(BBC.getPrefix() + "There was an error handling a FAWE command: [See console]");
-                actor.printRaw(e.getClass().getName() + ": " + e.getMessage());
-                log.error("An unexpected error occurred while handling a FAWE command", e);
+                actor.printError("An unknown error has occurred! Please see console.");
+                log.error("An unknown error occurred", e);
             }
         } finally {
-            final EditSession editSession = locals.get(EditSession.class);
+            EditSession editSession = locals.get(EditSession.class);
+
             if (editSession != null) {
-                editSession.flushQueue();
-                worldEdit.flushBlockBag(locals.get(Actor.class), editSession);
                 session.remember(editSession);
-                final long time = System.currentTimeMillis() - start;
-                if (time > 1000) {
-                    BBC.ACTION_COMPLETE.send(actor, (time / 1000d));
+                editSession.flushSession();
+
+                if (config.profile) {
+                    long time = System.currentTimeMillis() - start;
+                    int changed = editSession.getBlockChangeCount();
+                    if (time > 0) {
+                        double throughput = changed / (time / 1000.0);
+                        actor.printDebug((time / 1000.0) + "s elapsed (history: "
+                                + changed + " changed; "
+                                + Math.round(throughput) + " blocks/sec).");
+                    } else {
+                        actor.printDebug((time / 1000.0) + "s elapsed.");
+                    }
                 }
+
+                worldEdit.flushBlockBag(actor, editSession);
             }
             Request.reset();
         }
-        return null;
-    }
 
-    @Subscribe
-    public void handleCommand(CommandEvent event) {
-        Request.reset();
-        Actor actor = event.getActor();
-        if (actor instanceof Player) {
-            actor = LocationMaskedPlayerWrapper.wrap((Player) actor);
-        }
-        String args = event.getArguments();
-        CommandEvent finalEvent = new CommandEvent(actor, args);
-        final FawePlayer<Object> fp = FawePlayer.wrap(actor);
-        TaskManager.IMP.taskNow(() -> {
-            int space0 = args.indexOf(' ');
-            String arg0 = space0 == -1 ? args : args.substring(0, space0);
-            CommandMapping cmd = dispatcher.get(arg0);
-            if (cmd != null && cmd.getCallable() instanceof AParametricCallable) {
-                Command info = ((AParametricCallable) cmd.getCallable()).getDefinition();
-                if (!info.queued()) {
-                    handleCommandOnCurrentThread(finalEvent);
-                    return;
-                }
-            }
-            if (!fp.runAction(() -> handleCommandOnCurrentThread(finalEvent), false, true)) {
-                BBC.WORLDEDIT_COMMAND_LIMIT.send(fp);
-            }
-            finalEvent.setCancelled(true);
-        }, Fawe.isMainThread());
+        event.setCancelled(true);
     }
 
     @Subscribe
@@ -570,6 +367,5 @@ public final class CommandManager {
     public static java.util.logging.Logger getLogger() {
         return commandLog;
     }
-
 
 }

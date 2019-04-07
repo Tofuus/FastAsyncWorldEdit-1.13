@@ -43,31 +43,22 @@ import static com.google.common.base.Preconditions.checkNotNull;
  */
 public class FlatRegionVisitor implements Operation {
 
+    private final FlatRegion flatRegion;
     private final FlatRegionFunction function;
-    private MappedFaweQueue queue;
     private int affected = 0;
-    private final Iterable<BlockVector2> iterator;
 
     /**
      * Create a new visitor.
      *
      * @param flatRegion a flat region
-     * @param function   a function to apply to columns
+     * @param function a function to apply to columns
      */
-    public FlatRegionVisitor(final FlatRegion flatRegion, final FlatRegionFunction function) {
+    public FlatRegionVisitor(FlatRegion flatRegion, FlatRegionFunction function) {
         checkNotNull(flatRegion);
         checkNotNull(function);
-        this.function = function;
-        this.iterator = flatRegion.asFlatRegion();
-    }
 
-    public FlatRegionVisitor(final FlatRegion flatRegion, final FlatRegionFunction function, HasFaweQueue hasFaweQueue) {
-        checkNotNull(flatRegion);
-        checkNotNull(function);
+        this.flatRegion = flatRegion;
         this.function = function;
-        this.iterator = flatRegion.asFlatRegion();
-        FaweQueue queue = hasFaweQueue.getQueue();
-        this.queue = (MappedFaweQueue) (queue instanceof MappedFaweQueue ? queue : null);
     }
 
     /**
@@ -76,20 +67,17 @@ public class FlatRegionVisitor implements Operation {
      * @return the number of affected
      */
     public int getAffected() {
-        return this.affected;
+        return affected;
     }
 
     @Override
-    public Operation resume(final RunContext run) throws WorldEditException {
-        if (this.queue != null) {
-            for (final BlockVector2 pt : new Fast2DIterator(this.iterator, queue)) {
-                if (this.function.apply(pt)) affected++;
-            }
-        } else {
-            for (final BlockVector2 pt : this.iterator) {
-                if (this.function.apply(pt)) affected++;
+    public Operation resume(RunContext run) throws WorldEditException {
+        for (BlockVector2 pt : flatRegion.asFlatRegion()) {
+            if (function.apply(pt)) {
+                affected++;
             }
         }
+
         return null;
     }
 
@@ -98,10 +86,9 @@ public class FlatRegionVisitor implements Operation {
     }
 
     @Override
-    public void addStatusMessages(final List<String> messages) {
-        messages.add(BBC.VISITOR_FLAT.format(getAffected()));
+    public void addStatusMessages(List<String> messages) {
+        messages.add(getAffected() + " columns affected");
     }
 
-
-
 }
+

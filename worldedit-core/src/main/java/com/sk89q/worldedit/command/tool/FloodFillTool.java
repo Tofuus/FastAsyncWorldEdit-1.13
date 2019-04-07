@@ -64,7 +64,7 @@ public class FloodFillTool implements BlockTool {
     public boolean actPrimary(Platform server, LocalConfiguration config, Player player, LocalSession session, Location clicked) {
         World world = (World) clicked.getExtent();
 
-        BlockVector3 origin = clicked.toBlockPoint();
+        BlockVector3 origin = clicked.toVector().toBlockPoint();
         BlockType initialType = world.getBlock(origin).getBlockType();
 
         if (initialType.getMaterial().isAir()) {
@@ -77,17 +77,14 @@ public class FloodFillTool implements BlockTool {
 
         try (EditSession editSession = session.createEditSession(player)) {
             try {
-                Mask mask = initialType.toMask(editSession);
-                BlockReplace function = new BlockReplace(editSession, pattern);
-                RecursiveVisitor visitor = new RecursiveVisitor(mask, function, range, editSession.getQueue());
-                visitor.visit(origin);
-                Operations.completeLegacy(visitor);
+                recurse(editSession, origin, origin, range, initialType, new HashSet<>());
             } catch (MaxChangedBlocksException e) {
                 player.printError("Max blocks change limit reached.");
             } finally {
                 session.remember(editSession);
             }
         }
+
         return true;
     }
 
@@ -119,6 +116,5 @@ public class FloodFillTool implements BlockTool {
         recurse(editSession, pos.add(0, -1, 0),
                 origin, size, initialType, visited);
     }
-
 
 }

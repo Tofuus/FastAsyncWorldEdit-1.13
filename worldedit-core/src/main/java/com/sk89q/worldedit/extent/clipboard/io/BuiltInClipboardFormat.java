@@ -48,79 +48,65 @@ import com.sk89q.jnbt.Tag;
 /**
  * A collection of supported clipboard formats.
  */
-public enum BuiltInClipboardFormat implements ClipboardFormat{
+public enum BuiltInClipboardFormat implements ClipboardFormat {
+
     /**
      * The Schematic format used by MCEdit.
      */
-    @Deprecated
     MCEDIT_SCHEMATIC("mcedit", "mce", "schematic") {
-        @Override
-        public ClipboardReader getReader(InputStream inputStream) throws IOException {
-            if (inputStream instanceof FileInputStream) {
-                inputStream = new ResettableFileInputStream((FileInputStream) inputStream);
-            }
-            BufferedInputStream buffered = new BufferedInputStream(inputStream);
-            NBTInputStream nbtStream = new NBTInputStream(new BufferedInputStream(new GZIPInputStream(buffered)));
-            SchematicReader input = new SchematicReader(nbtStream);
-            input.setUnderlyingStream(inputStream);
-            return input;
-        }
-
-        @Override
-        public ClipboardWriter getWriter(OutputStream outputStream) throws IOException {
-            throw new IOException("This format does not support saving, use `schem` as format");
-        }
-
-        @Override
-        public boolean isFormat(File file) {
-        	 try (NBTInputStream str = new NBTInputStream(new GZIPInputStream(new FileInputStream(file)))) {
-                 NamedTag rootTag = str.readNamedTag();
-                 if (!rootTag.getName().equals("Schematic")) {
-                     return false;
-                 }
-                 CompoundTag schematicTag = (CompoundTag) rootTag.getTag();
-
-                 // Check
-                 Map<String, Tag> schematic = schematicTag.getValue();
-                 if (!schematic.containsKey("Materials")) {
-                     return false;
-                 }
-             } catch (Exception e) {
-                 return false;
-             }
-             return true;
-        }
 
         @Override
         public String getPrimaryFileExtension() {
             return "schematic";
         }
-    },
 
-    @Deprecated
-    SPONGE_SCHEMATIC("sponge", "schem") {
         @Override
         public ClipboardReader getReader(InputStream inputStream) throws IOException {
-            if (inputStream instanceof FileInputStream) {
-                inputStream = new ResettableFileInputStream((FileInputStream) inputStream);
-            }
-            BufferedInputStream buffered = new BufferedInputStream(inputStream);
-            NBTInputStream nbtStream = new NBTInputStream(new BufferedInputStream(new GZIPInputStream(buffered)));
-            SpongeSchematicReader input = new SpongeSchematicReader(nbtStream);
-            return input;
+            NBTInputStream nbtStream = new NBTInputStream(new GZIPInputStream(inputStream));
+            return new MCEditSchematicReader(nbtStream);
         }
 
         @Override
         public ClipboardWriter getWriter(OutputStream outputStream) throws IOException {
-            OutputStream gzip;
-            if (outputStream instanceof PGZIPOutputStream || outputStream instanceof GZIPOutputStream) {
-                gzip = outputStream;
-            } else {
-                outputStream = new BufferedOutputStream(outputStream);
-                PGZIPOutputStream pigz = new PGZIPOutputStream(outputStream);
-                gzip = pigz;
+            throw new IOException("This format does not support saving");
+        }
+
+        @Override
+        public boolean isFormat(File file) {
+            try (NBTInputStream str = new NBTInputStream(new GZIPInputStream(new FileInputStream(file)))) {
+                NamedTag rootTag = str.readNamedTag();
+                if (!rootTag.getName().equals("Schematic")) {
+                    return false;
+                }
+                CompoundTag schematicTag = (CompoundTag) rootTag.getTag();
+
+                // Check
+                Map<String, Tag> schematic = schematicTag.getValue();
+                if (!schematic.containsKey("Materials")) {
+                    return false;
+                }
+            } catch (Exception e) {
+                return false;
             }
-            NBTOutputStream nbtStream = new NBTOutputStream(new BufferedOutputStream(gzip));
+            return true;
+        }
+    },
+    SPONGE_SCHEMATIC("sponge", "schem") {
+
+        @Override
+        public String getPrimaryFileExtension() {
+            return "schem";
+        }
+
+        @Override
+        public ClipboardReader getReader(InputStream inputStream) throws IOException {
+            NBTInputStream nbtStream = new NBTInputStream(new GZIPInputStream(inputStream));
+            return new SpongeSchematicReader(nbtStream);
+        }
+
+        @Override
+        public ClipboardWriter getWriter(OutputStream outputStream) throws IOException {
+            NBTOutputStream nbtStream = new NBTOutputStream(new GZIPOutputStream(outputStream));
             return new SpongeSchematicWriter(nbtStream);
         }
 
@@ -143,74 +129,6 @@ public enum BuiltInClipboardFormat implements ClipboardFormat{
             }
 
             return true;
-        }
-
-        @Override
-        public String getPrimaryFileExtension() {
-            return "schem";
-        }
-    },
-
-    /**
-     * The structure block format:
-     * http://minecraft.gamepedia.com/Structure_block_file_format
-     */
-    STRUCTURE("structure", "nbt") {
-        @Override
-        public ClipboardReader getReader(InputStream inputStream) throws IOException {
-            inputStream = new BufferedInputStream(inputStream);
-            NBTInputStream nbtStream = new NBTInputStream(new BufferedInputStream(new GZIPInputStream(inputStream)));
-            return new StructureFormat(nbtStream);
-        }
-
-        @Override
-        public ClipboardWriter getWriter(OutputStream outputStream) throws IOException {
-            outputStream = new BufferedOutputStream(outputStream);
-            OutputStream gzip;
-            if (outputStream instanceof PGZIPOutputStream || outputStream instanceof GZIPOutputStream) {
-                gzip = outputStream;
-            } else {
-                PGZIPOutputStream pigz = new PGZIPOutputStream(outputStream);
-                gzip = pigz;
-            }
-            NBTOutputStream nbtStream = new NBTOutputStream(new BufferedOutputStream(gzip));
-            return new StructureFormat(nbtStream);
-        }
-
-        @Override
-        public boolean isFormat(File file) {
-            return file.getName().endsWith(".nbt");
-        }
-
-        @Override
-        public String getPrimaryFileExtension() {
-            return "nbt";
-        }
-    },
-
-    /**
-     * Isometric PNG writer
-     */
-    PNG("png", "image") {
-
-        @Override
-        public ClipboardReader getReader(InputStream inputStream) throws IOException {
-            return null;
-        }
-
-        @Override
-        public ClipboardWriter getWriter(OutputStream outputStream) throws IOException {
-            return new PNGWriter(new BufferedOutputStream(outputStream));
-        }
-
-        @Override
-        public boolean isFormat(File file) {
-            return file.getName().endsWith(".png");
-        }
-
-        @Override
-        public String getPrimaryFileExtension() {
-            return "png";
         }
     };
 

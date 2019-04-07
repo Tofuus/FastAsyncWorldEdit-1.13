@@ -42,7 +42,7 @@ import javax.annotation.Nullable;
 /**
  * An interface for adapters of various Bukkit implementations.
  */
-public interface BukkitImplAdapter<T> extends IBukkitAdapter {
+public interface BukkitImplAdapter {
 
     /**
      * Get the block at the given location.
@@ -52,9 +52,6 @@ public interface BukkitImplAdapter<T> extends IBukkitAdapter {
      */
     BaseBlock getBlock(Location location);
 
-    boolean setBlock(Chunk chunk, int x, int y, int z, BlockStateHolder<?> state, boolean update);
-
-    boolean isChunkInUse(Chunk chunk);
     /**
      * Set the block at the given location.
      *
@@ -101,22 +98,6 @@ public interface BukkitImplAdapter<T> extends IBukkitAdapter {
      */
     Map<String, ? extends Property<?>> getProperties(BlockType blockType);
 
-    default BlockMaterial getMaterial(BlockType blockType) {
-        return null;
-    }
-    
-    default BlockMaterial getMaterial(BlockState blockState) {
-        return null;
-    }
-
-    default Tag toNative(T foreign) {
-        return null;
-    }
-
-    default T fromNative(Tag foreign) {
-        return null;
-    }
-    
     /**
      * Send the given NBT data to the player.
      *

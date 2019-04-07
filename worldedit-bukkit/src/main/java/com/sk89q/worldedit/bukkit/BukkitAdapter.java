@@ -55,82 +55,249 @@ import org.bukkit.inventory.ItemStack;
 /**
  * Adapts between Bukkit and WorldEdit equivalent objects.
  */
-public enum BukkitAdapter {
-    INSTANCE
-    ;
-    private final IBukkitAdapter adapter;
+public class BukkitAdapter {
 
-    BukkitAdapter() {
-        BukkitImplAdapter tmp = WorldEditPlugin.getInstance().getBukkitImplAdapter();
-        if (tmp != null) {
-            this.adapter = tmp;
+    private BukkitAdapter() {
+    }
+
+    private static final ParserContext TO_BLOCK_CONTEXT = new ParserContext();
+
+    static {
+        TO_BLOCK_CONTEXT.setRestricted(false);
+    }
+
+    /**
+     * Checks equality between a WorldEdit BlockType and a Bukkit Material
+     *
+     * @param blockType The WorldEdit BlockType
+     * @param type The Bukkit Material
+     * @return If they are equal
+     */
+    public static boolean equals(BlockType blockType, Material type) {
+        return Objects.equals(blockType.getId(), type.getKey().toString());
+    }
+
+    /**
+     * Convert any WorldEdit world into an equivalent wrapped Bukkit world.
+     *
+     * <p>If a matching world cannot be found, a {@link RuntimeException}
+     * will be thrown.</p>
+     *
+     * @param world the world
+     * @return a wrapped Bukkit world
+     */
+    public static BukkitWorld asBukkitWorld(World world) {
+        if (world instanceof BukkitWorld) {
+            return (BukkitWorld) world;
         } else {
-            this.adapter = new SimpleBukkitAdapter();
+            BukkitWorld bukkitWorld = WorldEditPlugin.getInstance().getInternalPlatform().matchWorld(world);
+            if (bukkitWorld == null) {
+                throw new RuntimeException("World '" + world.getName() + "' has no matching version in Bukkit");
+            }
+            return bukkitWorld;
         }
     }
 
-    private static final IBukkitAdapter getAdapter() {
-        return INSTANCE.adapter;
-    }
-
-    public static boolean equals(BlockType blockType, Material type) {
-        return getAdapter().equals(blockType, type);
-    }
-
-    public static BukkitWorld asBukkitWorld(World world) {
-        return getAdapter().asBukkitWorld(world);
-    }
-
+    /**
+     * Create a WorldEdit world from a Bukkit world.
+     *
+     * @param world the Bukkit world
+     * @return a WorldEdit world
+     */
     public static World adapt(org.bukkit.World world) {
-        return getAdapter().adapt(world);
+        checkNotNull(world);
+        return new BukkitWorld(world);
     }
 
+    /**
+     * Create a WorldEdit Player from a Bukkit Player.
+     *
+     * @param player The Bukkit player
+     * @return The WorldEdit player
+     */
+    public static BukkitPlayer adapt(Player player) {
+        return WorldEditPlugin.getInstance().wrapPlayer(player);
+    }
+
+    /**
+     * Create a Bukkit Player from a WorldEdit Player.
+     *
+     * @param player The WorldEdit player
+     * @return The Bukkit player
+     */
+    public static Player adapt(com.sk89q.worldedit.entity.Player player) {
+        return ((BukkitPlayer) player).getPlayer();
+    }
+
+    /**
+     * Create a Bukkit world from a WorldEdit world.
+     *
+     * @param world the WorldEdit world
+     * @return a Bukkit world
+     */
     public static org.bukkit.World adapt(World world) {
-        return getAdapter().adapt(world);
+        checkNotNull(world);
+        if (world instanceof BukkitWorld) {
+            return ((BukkitWorld) world).getWorld();
+        } else {
+            org.bukkit.World match = Bukkit.getServer().getWorld(world.getName());
+            if (match != null) {
+                return match;
+            } else {
+                throw new IllegalArgumentException("Can't find a Bukkit world for " + world);
+            }
+        }
     }
 
+    /**
+     * Create a WorldEdit location from a Bukkit location.
+     *
+     * @param location the Bukkit location
+     * @return a WorldEdit location
+     */
     public static Location adapt(org.bukkit.Location location) {
-        return getAdapter().adapt(location);
+        checkNotNull(location);
+        Vector3 position = asVector(location);
+        return new com.sk89q.worldedit.util.Location(
+                adapt(location.getWorld()),
+                position,
+                location.getYaw(),
+                location.getPitch());
     }
 
+    /**
+     * Create a Bukkit location from a WorldEdit location.
+     *
+     * @param location the WorldEdit location
+     * @return a Bukkit location
+     */
     public static org.bukkit.Location adapt(Location location) {
-        return getAdapter().adapt(location);
+        checkNotNull(location);
+        Vector3 position = location.toVector();
+        return new org.bukkit.Location(
+                adapt((World) location.getExtent()),
+                position.getX(), position.getY(), position.getZ(),
+                location.getYaw(),
+                location.getPitch());
     }
 
+    /**
+     * Create a Bukkit location from a WorldEdit position with a Bukkit world.
+     *
+     * @param world the Bukkit world
+     * @param position the WorldEdit position
+     * @return a Bukkit location
+     */
     public static org.bukkit.Location adapt(org.bukkit.World world, Vector3 position) {
-        return getAdapter().adapt(world, position);
+        checkNotNull(world);
+        checkNotNull(position);
+        return new org.bukkit.Location(
+                world,
+                position.getX(), position.getY(), position.getZ());
     }
-    
+
+    /**
+     * Create a Bukkit location from a WorldEdit position with a Bukkit world.
+     *
+     * @param world the Bukkit world
+     * @param position the WorldEdit position
+     * @return a Bukkit location
+     */
     public static org.bukkit.Location adapt(org.bukkit.World world, BlockVector3 position) {
-        return getAdapter().adapt(world, position);
+        checkNotNull(world);
+        checkNotNull(position);
+        return new org.bukkit.Location(
+                world,
+                position.getX(), position.getY(), position.getZ());
     }
 
+    /**
+     * Create a Bukkit location from a WorldEdit location with a Bukkit world.
+     *
+     * @param world the Bukkit world
+     * @param location the WorldEdit location
+     * @return a Bukkit location
+     */
     public static org.bukkit.Location adapt(org.bukkit.World world, Location location) {
-        return getAdapter().adapt(world, location);
+        checkNotNull(world);
+        checkNotNull(location);
+        return new org.bukkit.Location(
+                world,
+                location.getX(), location.getY(), location.getZ(),
+                location.getYaw(),
+                location.getPitch());
     }
 
+    /**
+     * Create a WorldEdit Vector from a Bukkit location.
+     *
+     * @param location The Bukkit location
+     * @return a WorldEdit vector
+     */
     public static Vector3 asVector(org.bukkit.Location location) {
-        return getAdapter().asVector(location);
+        checkNotNull(location);
+        return Vector3.at(location.getX(), location.getY(), location.getZ());
     }
 
+    /**
+     * Create a WorldEdit BlockVector from a Bukkit location.
+     *
+     * @param location The Bukkit location
+     * @return a WorldEdit vector
+     */
     public static BlockVector3 asBlockVector(org.bukkit.Location location) {
-        return getAdapter().asBlockVector(location);
+        checkNotNull(location);
+        return BlockVector3.at(location.getX(), location.getY(), location.getZ());
     }
 
+    /**
+     * Create a WorldEdit entity from a Bukkit entity.
+     *
+     * @param entity the Bukkit entity
+     * @return a WorldEdit entity
+     */
     public static Entity adapt(org.bukkit.entity.Entity entity) {
-        return getAdapter().adapt(entity);
+        checkNotNull(entity);
+        return new BukkitEntity(entity);
     }
 
+    /**
+     * Create a Bukkit Material form a WorldEdit ItemType
+     *
+     * @param itemType The WorldEdit ItemType
+     * @return The Bukkit Material
+     */
     public static Material adapt(ItemType itemType) {
-        return getAdapter().adapt(itemType);
+        checkNotNull(itemType);
+        if (!itemType.getId().startsWith("minecraft:")) {
+            throw new IllegalArgumentException("Bukkit only supports Minecraft items");
+        }
+        return Material.getMaterial(itemType.getId().substring(10).toUpperCase());
     }
 
+    /**
+     * Create a Bukkit Material form a WorldEdit BlockType
+     *
+     * @param blockType The WorldEdit BlockType
+     * @return The Bukkit Material
+     */
     public static Material adapt(BlockType blockType) {
-        return getAdapter().adapt(blockType);
+        checkNotNull(blockType);
+        if (!blockType.getId().startsWith("minecraft:")) {
+            throw new IllegalArgumentException("Bukkit only supports Minecraft blocks");
+        }
+        return Material.getMaterial(blockType.getId().substring(10).toUpperCase());
     }
 
+    /**
+     * Create a WorldEdit GameMode from a Bukkit one.
+     *
+     * @param gameMode Bukkit GameMode
+     * @return WorldEdit GameMode
+     */
     public static GameMode adapt(org.bukkit.GameMode gameMode) {
-        return getAdapter().adapt(gameMode);
+        checkNotNull(gameMode);
+        return GameModes.get(gameMode.name().toLowerCase());
     }
 
     /**
@@ -140,11 +307,18 @@ public enum BukkitAdapter {
      * @return WorldEdit BiomeType
      */
     public static BiomeType adapt(Biome biome) {
-        return getAdapter().adapt(biome);
+        return BiomeTypes.get(biome.name().toLowerCase());
     }
 
     public static Biome adapt(BiomeType biomeType) {
-        return getAdapter().adapt(biomeType);
+        if (!biomeType.getId().startsWith("minecraft:")) {
+            throw new IllegalArgumentException("Bukkit only supports vanilla biomes");
+        }
+        try {
+            return Biome.valueOf(biomeType.getId().substring(10).toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     /**
@@ -154,28 +328,69 @@ public enum BukkitAdapter {
      * @return WorldEdit EntityType
      */
     public static EntityType adapt(org.bukkit.entity.EntityType entityType) {
-        return getAdapter().adapt(entityType);
+        return EntityTypes.get(entityType.getName().toLowerCase());
     }
 
     public static org.bukkit.entity.EntityType adapt(EntityType entityType) {
-        return getAdapter().adapt(entityType);
+        if (!entityType.getId().startsWith("minecraft:")) {
+            throw new IllegalArgumentException("Bukkit only supports vanilla entities");
+        }
+        return org.bukkit.entity.EntityType.fromName(entityType.getId().substring(10));
     }
 
+    /**
+     * Converts a Material to a BlockType
+     *
+     * @param material The material
+     * @return The blocktype
+     */
     public static BlockType asBlockType(Material material) {
-        return getAdapter().asBlockType(material);
+        checkNotNull(material);
+        if (!material.isBlock()) {
+            throw new IllegalArgumentException(material.getKey().toString() + " is not a block!");
+        }
+        return BlockTypes.get(material.getKey().toString());
     }
 
+    /**
+     * Converts a Material to a ItemType
+     *
+     * @param material The material
+     * @return The itemtype
+     */
     public static ItemType asItemType(Material material) {
-        return getAdapter().asItemType(material);
+        checkNotNull(material);
+        if (!material.isItem()) {
+            throw new IllegalArgumentException(material.getKey().toString() + " is not an item!");
+        }
+        return ItemTypes.get(material.getKey().toString());
     }
 
+    private static Map<String, BlockState> blockStateCache = new HashMap<>();
+
+    /**
+     * Create a WorldEdit BlockState from a Bukkit BlockData
+     *
+     * @param blockData The Bukkit BlockData
+     * @return The WorldEdit BlockState
+     */
     public static BlockState adapt(BlockData blockData) {
-        return getAdapter().adapt(blockData);
+        checkNotNull(blockData);
+        return blockStateCache.computeIfAbsent(blockData.getAsString(), new Function<String, BlockState>() {
+            @Nullable
+            @Override
+            public BlockState apply(@Nullable String input) {
+                try {
+                    return WorldEdit.getInstance().getBlockFactory().parseFromInput(input, TO_BLOCK_CONTEXT).toImmutableState();
+                } catch (InputParseException e) {
+                    e.printStackTrace();
+                    return null;
+                }
+            }
+        });
     }
 
-    public static BlockType adapt(Material material) {
-        return getAdapter().adapt(material);
-    }
+    private static Map<String, BlockData> blockDataCache = new HashMap<>();
 
     /**
      * Create a Bukkit BlockData from a WorldEdit BlockStateHolder
@@ -183,31 +398,51 @@ public enum BukkitAdapter {
      * @param block The WorldEdit BlockStateHolder
      * @return The Bukkit BlockData
      */
-	public static <B extends BlockStateHolder<B>> BlockData adapt(B block) {
-		return getAdapter().adapt(block);
+    public static <B extends BlockStateHolder<B>> BlockData adapt(B block) {
+        checkNotNull(block);
+        return blockDataCache.computeIfAbsent(block.getAsString(), new Function<String, BlockData>() {
+            @Nullable
+            @Override
+            public BlockData apply(@Nullable String input) {
+                return Bukkit.createBlockData(block.getAsString());
+            }
+        }).clone();
     }
 
-    public static BlockData getBlockData(int combinedId) {
-        return getAdapter().getBlockData(combinedId);
+    /**
+     * Create a WorldEdit BlockState from a Bukkit ItemStack
+     *
+     * @param itemStack The Bukkit ItemStack
+     * @return The WorldEdit BlockState
+     */
+    public static BlockState asBlockState(ItemStack itemStack) throws WorldEditException {
+        checkNotNull(itemStack);
+        if (itemStack.getType().isBlock()) {
+            return adapt(itemStack.getType().createBlockData());
+        } else {
+            throw new NotABlockException();
+        }
     }
 
-    public static BlockState asBlockState(ItemStack itemStack) {
-        return getAdapter().asBlockState(itemStack);
-    }
-
+    /**
+     * Create a WorldEdit BaseItemStack from a Bukkit ItemStack
+     *
+     * @param itemStack The Bukkit ItemStack
+     * @return The WorldEdit BaseItemStack
+     */
     public static BaseItemStack adapt(ItemStack itemStack) {
-        return getAdapter().adapt(itemStack);
+        checkNotNull(itemStack);
+        return new BaseItemStack(ItemTypes.get(itemStack.getType().getKey().toString()), itemStack.getAmount());
     }
 
+    /**
+     * Create a Bukkit ItemStack from a WorldEdit BaseItemStack
+     *
+     * @param item The WorldEdit BaseItemStack
+     * @return The Bukkit ItemStack
+     */
     public static ItemStack adapt(BaseItemStack item) {
-        return getAdapter().adapt(item);
-    }
-
-    public static BukkitPlayer adapt(Player player) {
-        return getAdapter().adapt(player);
-    }
-
-    public static Player adapt(com.sk89q.worldedit.entity.Player player) {
-        return getAdapter().adapt(player);
+        checkNotNull(item);
+        return new ItemStack(adapt(item.getType()), item.getAmount());
     }
 }

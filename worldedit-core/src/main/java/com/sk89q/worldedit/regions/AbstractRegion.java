@@ -182,7 +182,7 @@ public abstract class AbstractRegion implements Region {
 
     @Override
     public Set<BlockVector3> getChunkCubes() {
-        final Set<BlockVector3> chunks = new BlockVectorSet();
+        final Set<BlockVector3> chunks = new HashSet<>();
 
         final BlockVector3 min = getMinimumPoint();
         final BlockVector3 max = getMaximumPoint();

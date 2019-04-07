@@ -43,7 +43,6 @@ import java.io.IOException;
 
 import static com.sk89q.minecraft.util.commands.Logging.LogMode.REGION;
 
-@Command(aliases = {}, desc = "[More Info](http://wiki.sk89q.com/wiki/WorldEdit/Snapshots)")
 public class SnapshotUtilCommands {
 
     private final WorldEdit we;
@@ -96,10 +95,10 @@ public class SnapshotUtilCommands {
                     File dir = config.snapshotRepo.getDirectory();
 
                     try {
-                        WorldEdit.logger.info("FAWE found no snapshots: looked in: "
+                        WorldEdit.logger.info("WorldEdit found no snapshots: looked in: "
                                 + dir.getCanonicalPath());
                     } catch (IOException e) {
-                        WorldEdit.logger.info("FAWE found no snapshots: looked in "
+                        WorldEdit.logger.info("WorldEdit found no snapshots: looked in "
                                 + "(NON-RESOLVABLE PATH - does it exist?): "
                                 + dir.getPath());
                     }
@@ -117,11 +116,8 @@ public class SnapshotUtilCommands {
         // Load chunk store
         try {
             chunkStore = snapshot.getChunkStore();
-            BBC.SNAPSHOT_LOADED.send(player, snapshot.getName());
-        } catch (DataException e) {
-            player.printError("Failed to load snapshot: " + e.getMessage());
-            return;
-        } catch (IOException e) {
+            player.print("Snapshot '" + snapshot.getName() + "' loaded; now restoring...");
+        } catch (DataException | IOException e) {
             player.printError("Failed to load snapshot: " + e.getMessage());
             return;
         }
@@ -142,8 +138,8 @@ public class SnapshotUtilCommands {
                     player.printError("No chunks could be loaded. (Bad archive?)");
                 }
             } else {
-                player.print(BBC.getPrefix() + String.format("Restored; %d "
-                                + "missing chunks and %d other errors.",
+                player.print(String.format("Restored; %d "
+                        + "missing chunks and %d other errors.",
                         restore.getMissingChunks().size(),
                         restore.getErrorChunks().size()));
             }

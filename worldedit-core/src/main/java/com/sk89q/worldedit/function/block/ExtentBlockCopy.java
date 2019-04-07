@@ -54,11 +54,11 @@ public class ExtentBlockCopy implements RegionFunction {
     /**
      * Make a new copy.
      *
-     * @param source      the source extent
-     * @param from        the source offset
+     * @param source the source extent
+     * @param from the source offset
      * @param destination the destination extent
-     * @param to          the destination offset
-     * @param transform   a transform to apply to positions (after source offset, before destination offset)
+     * @param to the destination offset
+     * @param transform a transform to apply to positions (after source offset, before destination offset)
      */
     public ExtentBlockCopy(Extent source, BlockVector3 from, Extent destination, BlockVector3 to, Transform transform) {
         checkNotNull(source);
@@ -75,11 +75,13 @@ public class ExtentBlockCopy implements RegionFunction {
 
     @Override
     public boolean apply(BlockVector3 position) throws WorldEditException {
+        BaseBlock block = source.getFullBlock(position);
         BlockVector3 orig = position.subtract(from);
         BlockVector3 transformed = transform.apply(orig.toVector3()).toBlockPoint();
 
         // Apply transformations to NBT data if necessary
-        BaseBlock block = transformNbtData(source.getFullBlock(position));
+        block = transformNbtData(block);
+
         return destination.setBlock(transformed.add(to), block);
     }
 
@@ -117,7 +119,5 @@ public class ExtentBlockCopy implements RegionFunction {
 
         return state;
     }
-
-
 
 }

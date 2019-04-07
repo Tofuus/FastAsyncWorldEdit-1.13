@@ -31,7 +31,6 @@ import static com.sk89q.worldedit.function.mask.Masks.negate;
 /**
  * Tests whether a given vector meets a criteria.
  */
-@Link(clazz = UtilityCommands.class, value = "masks")
 public interface Mask {
 
     /**
@@ -48,28 +47,6 @@ public interface Mask {
      * @return a 2D mask version or {@code null} if this mask can't be 2D
      */
     @Nullable
-    default Mask2D toMask2D() {
-        return null;
-    }
+    Mask2D toMask2D();
 
-    default Mask optimize() {
-        return null;
-    }
-
-    default Mask and(Mask other) {
-        return null;
-    }
-
-    default Mask or(Mask other) {
-        return null;
-    }
-
-    default Mask inverse() {
-        if (this instanceof Masks.AlwaysTrue) {
-            return Masks.ALWAYS_FALSE;
-        } else if (this instanceof Masks.AlwaysFalse) {
-            return Masks.ALWAYS_TRUE;
-        }
-        return new InverseMask(this);
-    }
 }

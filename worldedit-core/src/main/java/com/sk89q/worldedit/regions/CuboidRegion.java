@@ -47,9 +47,6 @@ import static com.google.common.base.Preconditions.checkNotNull;
  */
 public class CuboidRegion extends AbstractRegion implements FlatRegion {
 
-
-    private boolean useOldIterator;
-    private int minX, minY, minZ, maxX, maxY, maxZ;
     private BlockVector3 pos1;
     private BlockVector3 pos2;
 
@@ -79,10 +76,6 @@ public class CuboidRegion extends AbstractRegion implements FlatRegion {
         recalculate();
     }
 
-    public void setUseOldIterator(boolean useOldIterator) {
-        this.useOldIterator = useOldIterator;
-    }
-
     /**
      * Get the first cuboid-defining corner.
      *
@@ -99,7 +92,6 @@ public class CuboidRegion extends AbstractRegion implements FlatRegion {
      */
     public void setPos1(BlockVector3 pos1) {
         this.pos1 = pos1;
-        recalculate();
     }
 
     /**
@@ -118,26 +110,14 @@ public class CuboidRegion extends AbstractRegion implements FlatRegion {
      */
     public void setPos2(BlockVector3 pos2) {
         this.pos2 = pos2;
-        recalculate();
     }
 
     /**
      * Clamps the cuboid according to boundaries of the world.
      */
-    protected void recalculate() {
-        if (pos1 == null || pos2 == null) {
-            return;
-        }
-        pos1 = pos1.clampY(world == null ? Integer.MIN_VALUE : 0, world == null ? Integer.MAX_VALUE : world.getMaxY());
-        pos2 = pos2.clampY(world == null ? Integer.MIN_VALUE : 0, world == null ? Integer.MAX_VALUE : world.getMaxY());
-        BlockVector3 min = getMinimumPoint();
-        BlockVector3 max = getMaximumPoint();
-        minX = min.getBlockX();
-        minY = min.getBlockY();
-        minZ = min.getBlockZ();
-        maxX = max.getBlockX();
-        maxY = max.getBlockY();
-        maxZ = max.getBlockZ();
+    private void recalculate() {
+        pos1 = pos1.clampY(0, world == null ? 255 : world.getMaxY());
+        pos2 = pos2.clampY(0, world == null ? 255 : world.getMaxY());
     }
 
     /**
@@ -306,74 +286,32 @@ public class CuboidRegion extends AbstractRegion implements FlatRegion {
     }
 
     @Override
-    public Set<BlockVector2> getChunks() {
-    	BlockVector3 min = getMinimumPoint();
-    	BlockVector3 max = getMaximumPoint();
-        final int maxX = max.getBlockX() >> ChunkStore.CHUNK_SHIFTS;
-        final int minX = min.getBlockX() >> ChunkStore.CHUNK_SHIFTS;
-        final int maxZ = max.getBlockZ() >> ChunkStore.CHUNK_SHIFTS;
-        final int minZ = min.getBlockZ() >> ChunkStore.CHUNK_SHIFTS;
-        final int size = (maxX - minX + 1) * (maxZ - minZ + 1);
-
-        return new AbstractSet<BlockVector2>() {
-            @Override
-            public Iterator<BlockVector2> iterator() {
-                return new Iterator<BlockVector2>() {
-                    private MutableBlockVector2 pos = new MutableBlockVector2().setComponents(maxX + 1, maxZ);
-
-                    @Override
-                    public boolean hasNext() {
-                        return pos != null;
-                    }
-
-                    @Override
-                    public BlockVector2 next() {
-                    	MutableBlockVector2 result = pos;
-                        // calc next
-                        pos.setComponents(pos.getX() - 1, pos.getZ());
-                        if (pos.getX() <= minX) {
-                            if (pos.getZ() == minZ) {
-                                pos = null;
-                            } else if (pos.getX() < minX) {
-                                pos.setComponents(maxX, pos.getZ() - 1);
-                            }
-                        }
-                        return result;
-                    }
-
-                    @Override
-                    public void remove() {
-                        throw new UnsupportedOperationException("This set is immutable.");
-                    }
-                };
-            }
-
-            @Override
-            public int size() {
-                return size;
-            }
-
-
-            @Override
-            public boolean contains(Object o) {
-                if (o instanceof BlockVector2) {
-                	BlockVector2 cv = (BlockVector2) o;
-                    return cv.getX() >= minX && cv.getX() <= maxX && cv.getZ() >= minZ && cv.getZ() <= maxZ;
-                } else {
-                    return false;
-                }
-            }
-        };
-    }
     public void shift(BlockVector3 change) throws RegionOperationException {
         pos1 = pos1.add(change);
         pos2 = pos2.add(change);
 
         recalculate();
     }
+
+    @Override
+    public Set<BlockVector2> getChunks() {
+        Set<BlockVector2> chunks = new HashSet<>();
+
+        BlockVector3 min = getMinimumPoint();
+        BlockVector3 max = getMaximumPoint();
+
+        for (int x = min.getBlockX() >> ChunkStore.CHUNK_SHIFTS; x <= max.getBlockX() >> ChunkStore.CHUNK_SHIFTS; ++x) {
+            for (int z = min.getBlockZ() >> ChunkStore.CHUNK_SHIFTS; z <= max.getBlockZ() >> ChunkStore.CHUNK_SHIFTS; ++z) {
+                chunks.add(BlockVector2.at(x, z));
+            }
+        }
+
+        return chunks;
+    }
+
     @Override
     public Set<BlockVector3> getChunkCubes() {
-        Set<BlockVector3> chunks = new BlockVectorSet();
+        Set<BlockVector3> chunks = new HashSet<>();
 
         BlockVector3 min = getMinimumPoint();
         BlockVector3 max = getMaximumPoint();
@@ -389,198 +327,70 @@ public class CuboidRegion extends AbstractRegion implements FlatRegion {
         return chunks;
     }
 
-
     @Override
-    public boolean contains(int x, int y, int z) {
-        return x >= this.minX && x <= this.maxX && z >= this.minZ && z <= this.maxZ && y >= this.minY && y <= this.maxY;
-    }
-
-    @Override
-    public boolean contains(int x, int z) {
-        return x >= this.minX && x <= this.maxX && z >= this.minZ && z <= this.maxZ;
-    }
-	@Override
     public boolean contains(BlockVector3 position) {
         BlockVector3 min = getMinimumPoint();
         BlockVector3 max = getMaximumPoint();
 
         return position.containedWithin(min, max);
     }
+
     @Override
     public Iterator<BlockVector3> iterator() {
-        if (Settings.IMP.HISTORY.COMPRESSION_LEVEL >= 9 || useOldIterator) {
-            return iterator_old();
-        }
-        return new Iterator<BlockVector3>() {
-            final MutableBlockVector3 mutable = new MutableBlockVector3(0, 0, 0);
-            private BlockVector3 min = getMinimumPoint();
-            private BlockVector3 max = getMaximumPoint();
-
-            int bx = min.getBlockX();
-            int by = min.getBlockY();
-            int bz = min.getBlockZ();
-
-            int tx = max.getBlockX();
-            int ty = max.getBlockY();
-            int tz = max.getBlockZ();
-
-            private int x = min.getBlockX();
-            private int y = min.getBlockY();
-            private int z = min.getBlockZ();
-
-            int cx = x >> 4;
-            int cz = z >> 4;
-            int cbx = Math.max(bx, cx << 4);
-            int cbz = Math.max(bz, cz << 4);
-            int ctx = Math.min(tx, 15 + (cx << 4));
-            int ctz = Math.min(tz, 15 + (cz << 4));
-
-            public boolean hasNext = true;
-
-
-            @Override
-            public boolean hasNext() {
-                return hasNext;
-            }
-
-            @Override
-            public BlockVector3 next() {
-                mutable.mutX(x);
-                mutable.mutY(y);
-                mutable.mutZ(z);
-                if (++x > ctx) {
-                    if (++z > ctz) {
-                        if (++y > ty) {
-                            y = by;
-                            if (x > tx) {
-                                x = bx;
-                                if (z > tz) {
-                                    if (!hasNext) {
-                                        throw new NoSuchElementException("End of iterator") {
-                                            @Override
-                                            public Throwable fillInStackTrace() {
-                                                return this;
-                                            }
-                                        };
-                                    }
-                                    x = tx;
-                                    y = ty;
-                                    hasNext = false;
-                                    return mutable;
-                                }
-                            } else {
-                                z = cbz;
-                            }
-                            cx = x >> 4;
-                            cz = z >> 4;
-                            cbx = Math.max(bx, cx << 4);
-                            cbz = Math.max(bz, cz << 4);
-                            ctx = Math.min(tx, 15 + (cx << 4));
-                            ctz = Math.min(tz, 15 + (cz << 4));
-                        } else {
-                            x = cbx;
-                            z = cbz;
-                        }
-                    } else {
-                        x = cbx;
-                    }
-                }
-                return mutable;
-            }
-        };
-    }
-
-    public Iterator<BlockVector3> iterator_old() {
-        final MutableBlockVector3 mutable = new MutableBlockVector3(0, 0, 0);
         return new Iterator<BlockVector3>() {
             private BlockVector3 min = getMinimumPoint();
             private BlockVector3 max = getMaximumPoint();
-
             private int nextX = min.getBlockX();
             private int nextY = min.getBlockY();
             private int nextZ = min.getBlockZ();
-            private boolean hasNext = true;
 
             @Override
             public boolean hasNext() {
-                return hasNext;
+                return (nextX != Integer.MIN_VALUE);
             }
 
             @Override
             public BlockVector3 next() {
-                mutable.mutX(nextX);
-                mutable.mutY(nextY);
-                mutable.mutZ(nextZ);
+                if (!hasNext()) throw new NoSuchElementException();
+                BlockVector3 answer = BlockVector3.at(nextX, nextY, nextZ);
                 if (++nextX > max.getBlockX()) {
                     nextX = min.getBlockX();
-                    if (++nextZ > max.getBlockZ()) {
-                        nextZ = min.getBlockZ();
-                        if (++nextY > max.getBlockY()) {
-                            if (!hasNext) {
-                                throw new NoSuchElementException("End of iterator") {
-                                    @Override
-                                    public Throwable fillInStackTrace() {
-                                        return this;
-                                    }
-                                };
-                            }
-                            nextX = max.getBlockX();
-                            nextZ = max.getBlockZ();
-                            nextY = max.getBlockY();
-                            hasNext = false;
+                    if (++nextY > max.getBlockY()) {
+                        nextY = min.getBlockY();
+                        if (++nextZ > max.getBlockZ()) {
+                            nextX = Integer.MIN_VALUE;
                         }
                     }
                 }
-                return mutable;
+                return answer;
             }
         };
     }
 
     @Override
     public Iterable<BlockVector2> asFlatRegion() {
-        return new Iterable<BlockVector2>() {
+        return () -> new Iterator<BlockVector2>() {
+            private BlockVector3 min = getMinimumPoint();
+            private BlockVector3 max = getMaximumPoint();
+            private int nextX = min.getBlockX();
+            private int nextZ = min.getBlockZ();
+
             @Override
-            public Iterator<BlockVector2> iterator() {
-                MutableBlockVector2 mutable = new MutableBlockVector2();
-                return new Iterator<BlockVector2>() {
-                    private BlockVector3 min = getMinimumPoint();
-                    private BlockVector3 max = getMaximumPoint();
-                    private int nextX = min.getBlockX();
-                    private int nextZ = min.getBlockZ();
+            public boolean hasNext() {
+                return (nextX != Integer.MIN_VALUE);
+            }
 
-                    @Override
-                    public boolean hasNext() {
-                        return (nextZ != Integer.MAX_VALUE);
+            @Override
+            public BlockVector2 next() {
+                if (!hasNext()) throw new NoSuchElementException();
+                BlockVector2 answer = BlockVector2.at(nextX, nextZ);
+                if (++nextX > max.getBlockX()) {
+                    nextX = min.getBlockX();
+                    if (++nextZ > max.getBlockZ()) {
+                        nextX = Integer.MIN_VALUE;
                     }
-
-                    @Override
-                    public BlockVector2 next() {
-                        if (!hasNext()) throw new java.util.NoSuchElementException();
-//                        BlockVector2 answer = mutable.setComponents(nextX, nextZ);
-                        BlockVector2 answer = BlockVector2.at(nextX, nextZ);
-                        if (++nextX > max.getBlockX()) {
-                            nextX = min.getBlockX();
-                            if (++nextZ > max.getBlockZ()) {
-                                if (nextZ == Integer.MIN_VALUE) {
-                                    throw new NoSuchElementException("End of iterator") {
-                                        @Override
-                                        public Throwable fillInStackTrace() {
-                                            return this;
-                                        }
-                                    };
-                                }
-                                nextZ = Integer.MAX_VALUE;
-                                nextX = Integer.MAX_VALUE;
-                            }
-                        }
-                        return answer;
-                    }
-
-                    @Override
-                    public void remove() {
-                        throw new UnsupportedOperationException();
-                    }
-                };
+                }
+                return answer;
             }
         };
     }
@@ -607,16 +417,10 @@ public class CuboidRegion extends AbstractRegion implements FlatRegion {
         return new CuboidRegion(region.getMinimumPoint(), region.getMaximumPoint());
     }
 
-    public static boolean contains(CuboidRegion region) {
-    	BlockVector3 min = region.getMinimumPoint();
-    	BlockVector3 max = region.getMaximumPoint();
-        return region.contains(min.getBlockX(), min.getBlockY(), min.getBlockZ()) && region.contains(max.getBlockX(), max.getBlockY(), max.getBlockZ());
-    }
-
     /**
      * Make a cuboid from the center.
      *
-     * @param origin  the origin
+     * @param origin the origin
      * @param apothem the apothem, where 0 is the minimum value to make a 1x1 cuboid
      * @return a cuboid region
      */
@@ -626,6 +430,4 @@ public class CuboidRegion extends AbstractRegion implements FlatRegion {
         BlockVector3 size = BlockVector3.ONE.multiply(apothem);
         return new CuboidRegion(origin.subtract(size), origin.add(size));
     }
-
-
 }

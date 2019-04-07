@@ -14,14 +14,10 @@ import static com.google.common.base.Preconditions.checkNotNull;
  */
 public final class Masks {
 
-    protected static final AlwaysTrue ALWAYS_TRUE = new AlwaysTrue();
-    protected static final AlwaysFalse ALWAYS_FALSE = new AlwaysFalse();
+    private static final AlwaysTrue ALWAYS_TRUE = new AlwaysTrue();
+    private static final AlwaysFalse ALWAYS_FALSE = new AlwaysFalse();
 
     private Masks() {
-    }
-
-    public static boolean isNull(Mask mask) {
-        return mask == null || mask == ALWAYS_TRUE;
     }
 
     /**
@@ -31,10 +27,6 @@ public final class Masks {
      */
     public static Mask alwaysTrue() {
         return ALWAYS_TRUE;
-    }
-
-    public static Mask alwaysFalse() {
-        return ALWAYS_FALSE;
     }
 
     /**
@@ -49,12 +41,34 @@ public final class Masks {
     /**
      * Negate the given mask.
      *
-     * @param finalMask the mask
+     * @param mask the mask
      * @return a new mask
      */
-//<<<<<<< HEAD
-    public static Mask negate(final Mask finalMask) {
-        return finalMask.inverse();
+    public static Mask negate(final Mask mask) {
+        if (mask instanceof AlwaysTrue) {
+            return ALWAYS_FALSE;
+        } else if (mask instanceof AlwaysFalse) {
+            return ALWAYS_TRUE;
+        }
+
+        checkNotNull(mask);
+        return new AbstractMask() {
+            @Override
+            public boolean test(BlockVector3 vector) {
+                return !mask.test(vector);
+            }
+
+            @Nullable
+            @Override
+            public Mask2D toMask2D() {
+                Mask2D mask2d = mask.toMask2D();
+                if (mask2d != null) {
+                    return negate(mask2d);
+                } else {
+                    return null;
+                }
+            }
+        };
     }
 
     /**
@@ -100,7 +114,7 @@ public final class Masks {
         };
     }
 
-    protected static class AlwaysTrue implements Mask, Mask2D {
+    private static class AlwaysTrue implements Mask, Mask2D {
         @Override
         public boolean test(BlockVector3 vector) {
             return true;
@@ -116,19 +130,9 @@ public final class Masks {
         public Mask2D toMask2D() {
             return this;
         }
-
-        @Override
-        public Mask and(Mask other) {
-            return other;
-        }
-
-        @Override
-        public Mask or(Mask other) {
-            return other;
-        }
     }
 
-    protected static class AlwaysFalse implements Mask, Mask2D {
+    private static class AlwaysFalse implements Mask, Mask2D {
         @Override
         public boolean test(BlockVector3 vector) {
             return false;
@@ -144,17 +148,6 @@ public final class Masks {
         public Mask2D toMask2D() {
             return this;
         }
-
-        @Override
-        public Mask and(Mask other) {
-            return this;
-        }
-
-        @Override
-        public Mask or(Mask other) {
-            return other;
-        }
     }
-
 
 }

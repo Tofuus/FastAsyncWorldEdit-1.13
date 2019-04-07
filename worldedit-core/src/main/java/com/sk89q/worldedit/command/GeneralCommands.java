@@ -143,6 +143,31 @@ public class GeneralCommands {
     }
 
     @Command(
+            aliases = { "/reorder" },
+            usage = "[multi|fast|none]",
+            desc = "Sets the reorder mode of WorldEdit",
+            min = 0,
+            max = 1
+    )
+    @CommandPermissions("worldedit.reorder")
+    public void reorderMode(Player player, LocalSession session, CommandContext args) throws WorldEditException {
+        String newState = args.getString(0, null);
+        if (newState == null) {
+            player.print("The reorder mode is " + session.getReorderMode().getDisplayName());
+        } else {
+            java.util.Optional<EditSession.ReorderMode> reorderModeOptional = EditSession.ReorderMode.getFromDisplayName(newState);
+            if (!reorderModeOptional.isPresent()) {
+                player.printError("Unknown reorder mode!");
+                return;
+            }
+
+            EditSession.ReorderMode reorderMode = reorderModeOptional.get();
+            session.setReorderMode(reorderMode);
+            player.print("The reorder mode is now " + session.getReorderMode().getDisplayName());
+        }
+    }
+
+    @Command(
             aliases = { "/drawsel" },
             usage = "[on|off]",
             desc = "Toggle drawing the current selection",
@@ -212,20 +237,20 @@ public class GeneralCommands {
     }
 
     @Command(
-            aliases = { "/searchitem", "/l", "/search", "searchitem" },
-            usage = "<query>",
-            flags = "bi",
-            desc = "Search for an item",
-            help =
-                    "Searches for an item.\n" +
-                            "Flags:\n" +
-                            "  -b only search for blocks\n" +
-                            "  -i only search for items",
-            min = 1,
-            max = 1
+        aliases = { "/searchitem", "/l", "/search", "searchitem" },
+        usage = "<query>",
+        flags = "bi",
+        desc = "Search for an item",
+        help =
+            "Searches for an item.\n" +
+            "Flags:\n" +
+            "  -b only search for blocks\n" +
+            "  -i only search for items",
+        min = 1,
+        max = 1
     )
     public void searchItem(Actor actor, CommandContext args) throws WorldEditException {
-
+        
         String query = args.getString(0).trim().toLowerCase();
         boolean blocksOnly = args.hasFlag('b');
         boolean itemsOnly = args.hasFlag('i');
@@ -236,26 +261,26 @@ public class GeneralCommands {
             actor.print(type.getId() + " (" + type.getName() + ")");
         } else {
             if (query.length() <= 2) {
-                actor.printError(BBC.getPrefix() + "Enter a longer search string (len > 2).");
+                actor.printError("Enter a longer search string (len > 2).");
                 return;
             }
 
             if (!blocksOnly && !itemsOnly) {
-                actor.print(BBC.getPrefix() + "Searching for: " + query);
+                actor.print("Searching for: " + query);
             } else if (blocksOnly && itemsOnly) {
-                actor.printError(BBC.getPrefix() + "You cannot use both the 'b' and 'i' flags simultaneously.");
+                actor.printError("You cannot use both the 'b' and 'i' flags simultaneously.");
                 return;
             } else if (blocksOnly) {
-                actor.print(BBC.getPrefix() + "Searching for blocks: " + query);
+                actor.print("Searching for blocks: " + query);
             } else {
-                actor.print(BBC.getPrefix() + "Searching for items: " + query);
+                actor.print("Searching for items: " + query);
             }
 
             int found = 0;
 
-            for (ItemType searchType : ItemTypes.values()) {
+            for (ItemType searchType : ItemType.REGISTRY) {
                 if (found >= 15) {
-                    actor.print(BBC.getPrefix() + "Too many results!");
+                    actor.print("Too many results!");
                     break;
                 }
 
@@ -277,7 +302,7 @@ public class GeneralCommands {
             }
 
             if (found == 0) {
-                actor.printError(BBC.getPrefix() + "No items found.");
+                actor.printError("No items found.");
             }
         }
     }

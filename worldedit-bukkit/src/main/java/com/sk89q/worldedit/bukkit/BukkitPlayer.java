@@ -104,33 +104,7 @@ public class BukkitPlayer extends AbstractPlayerActor {
 
     @Override
     public void giveItem(BaseItemStack itemStack) {
-        final PlayerInventory inv = player.getInventory();
-        ItemStack newItem = BukkitAdapter.adapt(itemStack);
-        if (itemStack.getType().getId().equalsIgnoreCase(WorldEdit.getInstance().getConfiguration().wandItem)) {
-            inv.remove(newItem);
-        }
-        final ItemStack item = player.getItemInHand();
-        player.setItemInHand(newItem);
-        HashMap<Integer, ItemStack> overflow = inv.addItem(item);
-        if (!overflow.isEmpty()) {
-            TaskManager.IMP.sync(new RunnableVal<Object>() {
-                @Override
-                public void run(Object value) {
-                    for (Map.Entry<Integer, ItemStack> entry : overflow.entrySet()) {
-                        ItemStack stack = entry.getValue();
-                        if (stack.getType() != Material.AIR && stack.getAmount() > 0) {
-                            Item
-                                dropped = player.getWorld().dropItem(player.getLocation(), stack);
-                            PlayerDropItemEvent event = new PlayerDropItemEvent(player, dropped);
-                            if (event.isCancelled()) {
-                                dropped.remove();
-                            }
-                        }
-                    }
-                }
-            });
-        }
-        player.updateInventory();
+        player.getInventory().addItem(BukkitAdapter.adapt(itemStack));
     }
 
     @Override
@@ -163,16 +137,6 @@ public class BukkitPlayer extends AbstractPlayerActor {
 
     @Override
     public void setPosition(Vector3 pos, float pitch, float yaw) {
-        if (pos instanceof com.sk89q.worldedit.util.Location) {
-            com.sk89q.worldedit.util.Location loc = (com.sk89q.worldedit.util.Location) pos;
-            Extent extent = loc.getExtent();
-            if (extent instanceof World) {
-                org.bukkit.World world = Bukkit.getWorld(((World) extent).getName());
-                System.out.println("Teleport to world " + world);
-                player.teleport(new Location(world, pos.getX(), pos.getY(),
-                        pos.getZ(), yaw, pitch));
-            }
-        }
         player.teleport(new Location(player.getWorld(), pos.getX(), pos.getY(),
                 pos.getZ(), yaw, pitch));
     }
@@ -216,7 +180,7 @@ public class BukkitPlayer extends AbstractPlayerActor {
         if (params.length > 0) {
             send = send + "|" + StringUtil.joinString(params, "|");
         }
-        player.sendPluginMessage(plugin, WorldEditPlugin.getCuiPluginChannel(), send.getBytes(CUIChannelListener.UTF_8_CHARSET));
+        player.sendPluginMessage(plugin, WorldEditPlugin.CUI_PLUGIN_CHANNEL, send.getBytes(CUIChannelListener.UTF_8_CHARSET));
     }
 
     public Player getPlayer() {
@@ -305,7 +269,7 @@ public class BukkitPlayer extends AbstractPlayerActor {
     }
 
     @Override
-    public void sendFakeBlock(BlockVector3 pos, BlockStateHolder block) {
+    public <B extends BlockStateHolder<B>> void sendFakeBlock(BlockVector3 pos, B block) {
         Location loc = new Location(player.getWorld(), pos.getX(), pos.getY(), pos.getZ());
         if (block == null) {
             player.sendBlockChange(loc, player.getWorld().getBlockAt(loc).getBlockData());

@@ -40,7 +40,4 @@ public interface ClipboardReader extends Closeable {
      */
     Clipboard read() throws IOException;
 
-    default Clipboard read(UUID uuid) throws IOException {
-        return read();
-    }
 }

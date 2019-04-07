@@ -119,7 +119,7 @@ public class ToolUtilCommands {
 
     @Command(
         aliases = { "size" },
-        usage = "[size]",
+        usage = "[pattern]",
         desc = "Set the brush size",
         min = 1,
         max = 1
@@ -129,6 +129,7 @@ public class ToolUtilCommands {
 
         int radius = args.getInteger(0);
         we.checkMaxBrushRadius(radius);
+
         session.getBrushTool(player.getItemInHand(HandSide.MAIN_HAND).getType()).setSize(radius);
         player.print("Brush size set.");
     }

@@ -39,7 +39,7 @@ import static com.sk89q.worldedit.util.command.parametric.BindingHelper.validate
  * 
  * <p>Handles both the object and primitive types.</p>
  */
-public final class PrimitiveBindings {
+public final class PrimitiveBindings extends BindingHelper {
 
     /**
      * Gets a type from a {@link ArgumentStack}.
@@ -208,4 +208,89 @@ public final class PrimitiveBindings {
         }
         return null;
     }
+    
+    /**
+     * Validate a number value using relevant modifiers.
+     * 
+     * @param number the number
+     * @param modifiers the list of modifiers to scan
+     * @throws ParameterException on a validation error
+     */
+    private static void validate(double number, Annotation[] modifiers) 
+            throws ParameterException {
+        for (Annotation modifier : modifiers) {
+            if (modifier instanceof Range) {
+                Range range = (Range) modifier;
+                if (number < range.min()) {
+                    throw new ParameterException(
+                            String.format(
+                                    "A valid value is greater than or equal to %s " +
+                                    "(you entered %s)", range.min(), number));
+                } else if (number > range.max()) {
+                    throw new ParameterException(
+                            String.format(
+                                    "A valid value is less than or equal to %s " +
+                                    "(you entered %s)", range.max(), number));
+                }
+            }
+        }
+    }
+    
+    /**
+     * Validate a number value using relevant modifiers.
+     * 
+     * @param number the number
+     * @param modifiers the list of modifiers to scan
+     * @throws ParameterException on a validation error
+     */
+    private static void validate(int number, Annotation[] modifiers) 
+            throws ParameterException {
+        for (Annotation modifier : modifiers) {
+            if (modifier instanceof Range) {
+                Range range = (Range) modifier;
+                if (number < range.min()) {
+                    throw new ParameterException(
+                            String.format(
+                                    "A valid value is greater than or equal to %s " +
+                                    "(you entered %s)", range.min(), number));
+                } else if (number > range.max()) {
+                    throw new ParameterException(
+                            String.format(
+                                    "A valid value is less than or equal to %s " +
+                                    "(you entered %s)", range.max(), number));
+                }
+            }
+        }
+    }
+
+    /**
+     * Validate a string value using relevant modifiers.
+     * 
+     * @param string the string
+     * @param modifiers the list of modifiers to scan
+     * @throws ParameterException on a validation error
+     */
+    private static void validate(String string, Annotation[] modifiers) 
+            throws ParameterException {
+        if (string == null) {
+            return;
+        }
+        
+        for (Annotation modifier : modifiers) {
+            if (modifier instanceof Validate) {
+                Validate validate = (Validate) modifier;
+                
+                if (!validate.regex().isEmpty()) {
+                    if (!string.matches(validate.regex())) {
+                        throw new ParameterException(
+                                String.format(
+                                        "The given text doesn't match the right " +
+                                        "format (technically speaking, the 'format' is %s)", 
+                                        validate.regex()));
+                    }
+                }
+            }
+        }
+    }
+    
 }

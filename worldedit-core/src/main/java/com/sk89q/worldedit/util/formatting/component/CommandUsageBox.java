@@ -45,7 +45,7 @@ public class CommandUsageBox extends StyledFragment {
     /**
      * Create a new usage box.
      *
-     * @param command       the command to describe
+     * @param command the command to describe
      * @param commandString the command that was used, such as "/we" or "/brush sphere"
      */
     public CommandUsageBox(CommandCallable command, String commandString) {
@@ -55,9 +55,9 @@ public class CommandUsageBox extends StyledFragment {
     /**
      * Create a new usage box.
      *
-     * @param command       the command to describe
+     * @param command the command to describe
      * @param commandString the command that was used, such as "/we" or "/brush sphere"
-     * @param locals        list of locals to use
+     * @param locals list of locals to use
      */
     public CommandUsageBox(CommandCallable command, String commandString, @Nullable CommandLocals locals) {
         checkNotNull(command);
@@ -70,34 +70,34 @@ public class CommandUsageBox extends StyledFragment {
     }
 
     private void attachDispatcherUsage(Dispatcher dispatcher, String commandString, @Nullable CommandLocals locals) {
-        CommandListBox box = new CommandListBox(BBC.HELP_HEADER_SUBCOMMANDS.f());
+        CommandListBox box = new CommandListBox("Subcommands");
         String prefix = !commandString.isEmpty() ? commandString + " " : "";
 
         List<CommandMapping> list = new ArrayList<>(dispatcher.getCommands());
-        Collections.sort(list, new PrimaryAliasComparator(CommandManager.COMMAND_CLEAN_PATTERN));
+        list.sort(new PrimaryAliasComparator(CommandManager.COMMAND_CLEAN_PATTERN));
 
         for (CommandMapping mapping : list) {
-            boolean perm = locals == null || mapping.getCallable().testPermission(locals);
-            box.appendCommand(prefix + mapping.getPrimaryAlias(), mapping.getDescription().getDescription(), perm);
+            if (locals == null || mapping.getCallable().testPermission(locals)) {
+                box.appendCommand(prefix + mapping.getPrimaryAlias(), mapping.getDescription().getDescription());
+            }
         }
 
         append(box);
     }
 
     private void attachCommandUsage(Description description, String commandString) {
-        MessageBox box = new MessageBox(BBC.HELP_HEADER_COMMAND.f(commandString));
+        MessageBox box = new MessageBox("Help for " + commandString);
         StyledFragment contents = box.getContents();
 
         if (description.getUsage() != null) {
-            contents.append(new Label().append(BBC.COMMAND_SYNTAX.f(description.getUsage())));
+            contents.append(new Label().append("Usage: "));
+            contents.append(description.getUsage());
         } else {
-            contents.createFragment(Style.GRAY);
             contents.append(new Subtle().append("Usage information is not available."));
         }
 
         contents.newLine();
 
-        contents.createFragment(Style.GRAY);
         if (description.getHelp() != null) {
             contents.append(description.getHelp());
         } else if (description.getDescription() != null) {
@@ -108,7 +108,5 @@ public class CommandUsageBox extends StyledFragment {
 
         append(box);
     }
-
-
 
 }

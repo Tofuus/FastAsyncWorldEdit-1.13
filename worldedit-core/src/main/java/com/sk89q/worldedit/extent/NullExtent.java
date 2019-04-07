@@ -44,8 +44,6 @@ import java.util.List;
  */
 public class NullExtent implements Extent {
 
-    public static final NullExtent INSTANCE = new NullExtent();
-
     @Override
     public BlockVector3 getMinimumPoint() {
         return BlockVector3.ZERO;
@@ -74,10 +72,6 @@ public class NullExtent implements Extent {
 
     @Override
     public BlockState getBlock(BlockVector3 position) {
-        return BlockTypes.AIR.getDefaultState();
-    }
-
-    public BlockState getLazyBlock(BlockVector3 position) {
         return BlockTypes.AIR.getDefaultState();
     }
 

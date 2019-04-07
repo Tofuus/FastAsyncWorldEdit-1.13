@@ -25,12 +25,9 @@ import static java.util.Objects.requireNonNull;
 import java.util.ArrayList;
 import java.util.List;
 
-public final class NamespacedRegistry<V extends RegistryItem> extends Registry<V> {
+public final class NamespacedRegistry<V> extends Registry<V> {
     private static final String MINECRAFT_NAMESPACE = "minecraft";
-
     private final String defaultNamespace;
-    private final List<V> values = new ArrayList<>();
-    private int lastInternalId = 0;
 
     public NamespacedRegistry(final String name) {
         this(name, MINECRAFT_NAMESPACE);
@@ -41,33 +38,14 @@ public final class NamespacedRegistry<V extends RegistryItem> extends Registry<V
         this.defaultNamespace = defaultNamespace;
     }
 
-    public synchronized V register(final String key, final V value) {
+    public @Nullable V get(final String key) {
+        return super.get(this.orDefaultNamespace(key));
+    }
+
+    public V register(final String key, final V value) {
         requireNonNull(key, "key");
-        int index = key.indexOf(':');
-        checkState(index > -1, "key is not namespaced");
-        V existing = super.get(key);
-        if (existing != null) {
-            throw new UnsupportedOperationException("Replacing existing registrations is not supported");
-        }
-        value.setInternalId(lastInternalId++);
-        values.add(value);
-        super.register(key, value);
-        if (key.startsWith(defaultNamespace)) {
-            super.register(key.substring(index + 1), value);
-        }
-        return value;
-    }
-
-    public V getByInternalId(int index) {
-        return values.get(index);
-    }
-
-    public int getInternalId(V value) {
-        return value.getInternalId();
-    }
-
-    public int size() {
-        return values.size();
+        checkState(key.indexOf(':') > -1, "key is not namespaced");
+        return super.register(key, value);
     }
 
     private String orDefaultNamespace(final String key) {

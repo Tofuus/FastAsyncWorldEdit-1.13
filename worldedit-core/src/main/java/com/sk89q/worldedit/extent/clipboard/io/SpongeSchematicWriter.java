@@ -79,11 +79,18 @@ public class SpongeSchematicWriter implements ClipboardWriter {
 
     @Override
     public void write(Clipboard clipboard) throws IOException {
-        write1(clipboard);
+        // For now always write the latest version. Maybe provide support for earlier if more appear.
+        outputStream.writeNamedTag("Schematic", new CompoundTag(write1(clipboard)));
     }
 
-    public void write1(Clipboard clipboard) throws IOException {
-        // metadata
+    /**
+     * Writes a version 1 schematic file.
+     *
+     * @param clipboard The clipboard
+     * @return The schematic map
+     * @throws IOException If an error occurs
+     */
+    private Map<String, Tag> write1(Clipboard clipboard) throws IOException {
         Region region = clipboard.getRegion();
         BlockVector3 origin = clipboard.getOrigin();
         BlockVector3 min = region.getMinimumPoint();
@@ -91,6 +98,7 @@ public class SpongeSchematicWriter implements ClipboardWriter {
         int width = region.getWidth();
         int height = region.getHeight();
         int length = region.getLength();
+
         if (width > MAX_SIZE) {
             throw new IllegalArgumentException("Width of region too large for a .schematic");
         }
@@ -100,164 +108,95 @@ public class SpongeSchematicWriter implements ClipboardWriter {
         if (length > MAX_SIZE) {
             throw new IllegalArgumentException("Length of region too large for a .schematic");
         }
-        // output
-        final DataOutput rawStream = outputStream.getOutputStream();
-        outputStream.writeLazyCompoundTag("Schematic", out -> {
-            out.writeNamedTag("Version", 1);
-            out.writeNamedTag("Width",  (short) width);
-            out.writeNamedTag("Height", (short) height);
-            out.writeNamedTag("Length", (short) length);
-            out.writeNamedTag("Offset", new int[]{
-                    min.getBlockX(),
-                    min.getBlockY(),
-                    min.getBlockZ(),
-            });
 
-            out.writeLazyCompoundTag("Metadata", out1 -> {
-                out1.writeNamedTag("WEOffsetX", offset.getBlockX());
-                out1.writeNamedTag("WEOffsetY", offset.getBlockY());
-                out1.writeNamedTag("WEOffsetZ", offset.getBlockZ());
-            });
+        Map<String, Tag> schematic = new HashMap<>();
+        schematic.put("Version", new IntTag(1));
 
-            ByteArrayOutputStream blocksCompressed = new ByteArrayOutputStream();
-            DataOutputStream blocksOut = new DataOutputStream(new LZ4BlockOutputStream(blocksCompressed));
+        Map<String, Tag> metadata = new HashMap<>();
+        metadata.put("WEOffsetX", new IntTag(offset.getBlockX()));
+        metadata.put("WEOffsetY", new IntTag(offset.getBlockY()));
+        metadata.put("WEOffsetZ", new IntTag(offset.getBlockZ()));
 
-            ByteArrayOutputStream tilesCompressed = new ByteArrayOutputStream();
-            NBTOutputStream tilesOut = new NBTOutputStream(new LZ4BlockOutputStream(tilesCompressed));
-            int[] numTiles = {0};
+        schematic.put("Metadata", new CompoundTag(metadata));
 
-            List<Integer> paletteList = new ArrayList<>();
-            char[] palette = new char[BlockTypes.states.length];
-            Arrays.fill(palette, Character.MAX_VALUE);
-            int[] paletteMax = {0};
+        schematic.put("Width", new ShortTag((short) width));
+        schematic.put("Height", new ShortTag((short) height));
+        schematic.put("Length", new ShortTag((short) length));
 
+        // The Sponge format Offset refers to the 'min' points location in the world. That's our 'Origin'
+        schematic.put("Offset", new IntArrayTag(new int[]{
+                min.getBlockX(),
+                min.getBlockY(),
+                min.getBlockZ(),
+        }));
 
-            FaweClipboard.BlockReader reader = new FaweClipboard.BlockReader() {
-                @Override
-                public <B extends BlockStateHolder<B>> void run(int x, int y, int z, B block) {
-                    try {
-                        boolean hasNbt = block instanceof BaseBlock && ((BaseBlock)block).hasNbtData();
-                        if (hasNbt) {
-                        	BaseBlock localBlock = (BaseBlock)block;
-                            Map<String, Tag> values = localBlock.getNbtData().getValue();
-                            values.remove("id"); // Remove 'id' if it exists. We want 'Id'
-                            // Positions are kept in NBT, we don't want that.
-                            values.remove("x");
-                            values.remove("y");
-                            values.remove("z");
-                            if (!values.containsKey("Id")) values.put("Id", new StringTag(localBlock.getNbtId()));
-                            values.put("Pos", new IntArrayTag(new int[]{
-                                    x,
-                                    y,
-                                    z
-                            }));
-                            numTiles[0]++;
-                            tilesOut.writeTagPayload(localBlock.getNbtData());
+        int paletteMax = 0;
+        Map<String, Integer> palette = new HashMap<>();
+
+        List<CompoundTag> tileEntities = new ArrayList<>();
+
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream(width * height * length);
+
+        for (int y = 0; y < height; y++) {
+            int y0 = min.getBlockY() + y;
+            for (int z = 0; z < length; z++) {
+                int z0 = min.getBlockZ() + z;
+                for (int x = 0; x < width; x++) {
+                    int x0 = min.getBlockX() + x;
+                    BlockVector3 point = BlockVector3.at(x0, y0, z0);
+                    BaseBlock block = clipboard.getFullBlock(point);
+                    if (block.getNbtData() != null) {
+                        Map<String, Tag> values = new HashMap<>();
+                        for (Map.Entry<String, Tag> entry : block.getNbtData().getValue().entrySet()) {
+                            values.put(entry.getKey(), entry.getValue());
                         }
-                        int ordinal = block.getOrdinal();
-                        char value = palette[ordinal];
-                        if (value == Character.MAX_VALUE) {
-                            int size = paletteMax[0]++;
-                            palette[ordinal] = value = (char) size;
-                            paletteList.add(ordinal);
-                        }
-                        while ((value & -128) != 0) {
-                            blocksOut.write(value & 127 | 128);
-                            value >>>= 7;
-                        }
-                        blocksOut.write(value);
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-            };
-            if (clipboard instanceof BlockArrayClipboard) {
-                ((BlockArrayClipboard) clipboard).IMP.forEach(reader, true);
-            } else {
-                for (BlockVector3 pt : region) {
-                    BaseBlock block = clipboard.getFullBlock(pt);
-                    int x = pt.getBlockX() - min.getBlockX();
-                    int y = pt.getBlockY() - min.getBlockY();
-                    int z = pt.getBlockZ() - min.getBlockY();
-                    reader.run(x, y, z, block);
-                }
-            }
-            // close
-            tilesOut.close();
-            blocksOut.close();
-            // palette max
-            out.writeNamedTag("PaletteMax", paletteMax[0]);
-            // palette
-            out.writeLazyCompoundTag("Palette", out12 -> {
-                for (int i = 0; i < paletteList.size(); i++) {
-                    int stateOrdinal = paletteList.get(i);
-                    BlockState state = BlockTypes.states[stateOrdinal];
-                    out12.writeNamedTag(state.getAsString(), i);
-                }
-            });
-            // Block data
-            out.writeNamedTagName("BlockData", NBTConstants.TYPE_BYTE_ARRAY);
-            rawStream.writeInt(blocksOut.size());
-            try (LZ4BlockInputStream in = new LZ4BlockInputStream(new ByteArrayInputStream(blocksCompressed.toByteArray()))) {
-                IOUtil.copy(in, rawStream);
-            }
-            // tiles
-            if (numTiles[0] != 0) {
-                out.writeNamedTagName("TileEntities", NBTConstants.TYPE_LIST);
-                rawStream.write(NBTConstants.TYPE_COMPOUND);
-                rawStream.writeInt(numTiles[0]);
-                try (LZ4BlockInputStream in = new LZ4BlockInputStream(new ByteArrayInputStream(tilesCompressed.toByteArray()))) {
-                    IOUtil.copy(in, rawStream);
-                }
-            } else {
-                out.writeNamedEmptyList("TileEntities");
-            }
 
+                        values.remove("id"); // Remove 'id' if it exists. We want 'Id'
 
-            // Entities
-            List<Tag> entities = new ArrayList<Tag>();
-            for (Entity entity : clipboard.getEntities()) {
-                BaseEntity state = entity.getState();
+                        // Positions are kept in NBT, we don't want that.
+                        values.remove("x");
+                        values.remove("y");
+                        values.remove("z");
 
-                if (state != null) {
-                    Map<String, Tag> values = new HashMap<String, Tag>();
+                        values.put("Id", new StringTag(block.getNbtId()));
+                        values.put("Pos", new IntArrayTag(new int[]{
+                                x,
+                                y,
+                                z
+                        }));
 
-                    // Put NBT provided data
-                    CompoundTag rawTag = state.getNbtData();
-                    if (rawTag != null) {
-                        values.putAll(rawTag.getValue());
+                        tileEntities.add(new CompoundTag(values));
                     }
 
-                    // Store our location data, overwriting any
-                    values.put("id", new StringTag(state.getType().getId()));
-                    values.put("Pos", writeVector(entity.getLocation(), "Pos"));
-                    values.put("Rotation", writeRotation(entity.getLocation(), "Rotation"));
+                    String blockKey = block.toImmutableState().getAsString();
+                    int blockId;
+                    if (palette.containsKey(blockKey)) {
+                        blockId = palette.get(blockKey);
+                    } else {
+                        blockId = paletteMax;
+                        palette.put(blockKey, blockId);
+                        paletteMax++;
+                    }
 
-                    CompoundTag entityTag = new CompoundTag(values);
-                    entities.add(entityTag);
+                    while ((blockId & -128) != 0) {
+                        buffer.write(blockId & 127 | 128);
+                        blockId >>>= 7;
+                    }
+                    buffer.write(blockId);
                 }
             }
-            if (entities.isEmpty()) {
-                out.writeNamedEmptyList("Entities");
-            } else {
-                out.writeNamedTag("Entities", new ListTag(CompoundTag.class, entities));
-            }
-        });
-    }
+        }
 
-    private static Tag writeVector(Vector3 vector, String name) {
-        List<DoubleTag> list = new ArrayList<DoubleTag>();
-        list.add(new DoubleTag(vector.getX()));
-        list.add(new DoubleTag(vector.getY()));
-        list.add(new DoubleTag(vector.getZ()));
-        return new ListTag(DoubleTag.class, list);
-    }
+        schematic.put("PaletteMax", new IntTag(paletteMax));
 
-    private static Tag writeRotation(Location location, String name) {
-        List<FloatTag> list = new ArrayList<FloatTag>();
-        list.add(new FloatTag(location.getYaw()));
-        list.add(new FloatTag(location.getPitch()));
-        return new ListTag(FloatTag.class, list);
+        Map<String, Tag> paletteTag = new HashMap<>();
+        palette.forEach((key, value) -> paletteTag.put(key, new IntTag(value)));
+
+        schematic.put("Palette", new CompoundTag(paletteTag));
+        schematic.put("BlockData", new ByteArrayTag(buffer.toByteArray()));
+        schematic.put("TileEntities", new ListTag(CompoundTag.class, tileEntities));
+
+        return schematic;
     }
 
     @Override

@@ -76,7 +76,7 @@ import java.util.concurrent.TimeoutException;
  */
 public class Expression {
 
-    private static final ThreadLocal<ArrayDeque<Expression>> instance = ThreadLocal.withInitial(ArrayDeque::new);
+    private static final ThreadLocal<Stack<Expression>> instance = new ThreadLocal<>();
     private static final ExecutorService evalThread = Executors.newCachedThreadPool(
             new ThreadFactoryBuilder()
                     .setDaemon(true)
@@ -85,7 +85,6 @@ public class Expression {
 
     private final Map<String, RValue> variables = new HashMap<>();
     private final String[] variableNames;
-    private Variable[] variableArray;
     private RValue root;
     private final Functions functions = new Functions();
     private ExpressionEnvironment environment;
@@ -94,45 +93,29 @@ public class Expression {
         return new Expression(expression, variableNames);
     }
 
-    public Expression(double constant) {
-        variableNames = null;
-        root = new Constant(0, constant);
-    }
-
     private Expression(String expression, String... variableNames) throws ExpressionException {
         this(Lexer.tokenize(expression), variableNames);
     }
 
     private Expression(List<Token> tokens, String... variableNames) throws ExpressionException {
+        this.variableNames = variableNames;
+
         variables.put("e", new Constant(-1, Math.E));
         variables.put("pi", new Constant(-1, Math.PI));
         variables.put("true", new Constant(-1, 1));
         variables.put("false", new Constant(-1, 0));
 
-        this.variableNames = variableNames;
-        variableArray = new Variable[variableNames.length];
-        for (int i = 0; i < variableNames.length; i++) {
-            String variableName = variableNames[i];
+        for (String variableName : variableNames) {
             if (variables.containsKey(variableName)) {
                 throw new ExpressionException(-1, "Tried to overwrite identifier '" + variableName + "'");
             }
-            Variable var = new Variable(0);
-            variables.put(variableName, var);
-            variableArray[i] = var;
+            variables.put(variableName, new Variable(0));
         }
 
         root = Parser.parse(tokens, this);
     }
 
     public double evaluate(double... values) throws EvaluationException {
-        if (root instanceof Constant) {
-            return root.getValue();
-        }
-        for (int i = 0; i < values.length; i++) {
-            Variable var = variableArray[i];
-            var.value = values[i];
-        }
-        pushInstance();
         return evaluate(values, WorldEdit.getInstance().getConfiguration().calculationTimeout);
     }
 
@@ -146,6 +129,7 @@ public class Expression {
 
             ((Variable) invokable).value = values[i];
         }
+
         try {
             if (timeout < 0) {
                 return evaluateRoot();
@@ -157,7 +141,18 @@ public class Expression {
     }
 
     private double evaluateRootTimed(int timeout) throws EvaluationException {
-        Future<Double> result = evalThread.submit(this::evaluateRoot);
+        Request request = Request.request();
+        Future<Double> result = evalThread.submit(() -> {
+            Request local = Request.request();
+            local.setSession(request.getSession());
+            local.setWorld(request.getWorld());
+            local.setEditSession(request.getEditSession());
+            try {
+                return Expression.this.evaluateRoot();
+            } finally {
+                Request.reset();
+            }
+        });
         try {
             return result.get(timeout, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
@@ -191,10 +186,6 @@ public class Expression {
         root = root.optimize();
     }
 
-    public RValue getRoot() {
-        return root;
-    }
-
     @Override
     public String toString() {
         return root.toString();
@@ -214,14 +205,22 @@ public class Expression {
     }
 
     private void pushInstance() {
-        ArrayDeque<Expression> foo = instance.get();
-        foo.push(this);
+        Stack<Expression> threadLocalExprStack = instance.get();
+        if (threadLocalExprStack == null) {
+            instance.set(threadLocalExprStack = new Stack<>());
+        }
+
+        threadLocalExprStack.push(this);
     }
 
     private void popInstance() {
-        ArrayDeque<Expression> foo = instance.get();
+        Stack<Expression> threadLocalExprStack = instance.get();
 
-        foo.pop();
+        threadLocalExprStack.pop();
+
+        if (threadLocalExprStack.isEmpty()) {
+            instance.set(null);
+        }
     }
 
     public Functions getFunctions() {
@@ -235,7 +234,5 @@ public class Expression {
     public void setEnvironment(ExpressionEnvironment environment) {
         this.environment = environment;
     }
-
-
 
 }

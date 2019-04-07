@@ -25,25 +25,14 @@ import com.sk89q.worldedit.registry.NamespacedRegistry;
 /**
  * All the types of biomes in the game.
  */
-public class BiomeType implements RegistryItem {
+public class BiomeType {
 
     public static final NamespacedRegistry<BiomeType> REGISTRY = new NamespacedRegistry<>("biome type");
-    private final String id;
+
+    private String id;
 
     public BiomeType(String id) {
         this.id = id;
-    }
-
-    private int internalId;
-
-    @Override
-    public void setInternalId(int internalId) {
-        this.internalId = internalId;
-    }
-
-    @Override
-    public int getInternalId() {
-        return internalId;
     }
 
     /**
@@ -62,7 +51,7 @@ public class BiomeType implements RegistryItem {
 
     @Override
     public int hashCode() {
-        return this.internalId;
+        return this.id.hashCode();
     }
 
     @Override

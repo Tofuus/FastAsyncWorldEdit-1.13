@@ -59,23 +59,21 @@ import static com.sk89q.worldedit.EditSession.Stage;
  * and block interceptors intercept at BOTH {@link Stage#BEFORE_CHANGE} and
  * {@link Stage#BEFORE_HISTORY}.</p>
  */
-public class EditSessionEvent extends Event implements Cancellable {
+public class EditSessionEvent extends Event {
 
     private final World world;
     private final Actor actor;
     private final int maxBlocks;
     private final Stage stage;
     private Extent extent;
-    private EditSession session;
-    private boolean cancelled;
 
     /**
      * Create a new event.
      *
-     * @param world     the world
-     * @param actor     the actor, or null if there is no actor specified
+     * @param world the world
+     * @param actor the actor, or null if there is no actor specified
      * @param maxBlocks the maximum number of block changes
-     * @param stage     the stage
+     * @param stage the stage
      */
     public EditSessionEvent(@Nullable World world, Actor actor, int maxBlocks, Stage stage) {
         this.world = world;
@@ -84,22 +82,12 @@ public class EditSessionEvent extends Event implements Cancellable {
         this.stage = stage;
     }
 
-    public void setEditSession(EditSession session) {
-        this.session = session;
-    }
-
-    public EditSession getEditSession() {
-        return session;
-    }
-
     /**
      * Get the actor for this event.
      *
      * @return the actor, which may be null if unavailable
      */
-    public
-    @Nullable
-    Actor getActor() {
+    public @Nullable Actor getActor() {
         return actor;
     }
 
@@ -108,9 +96,7 @@ public class EditSessionEvent extends Event implements Cancellable {
      *
      * @return the world
      */
-    public
-    @Nullable
-    World getWorld() {
+    public @Nullable World getWorld() {
         return world;
     }
 
@@ -152,16 +138,6 @@ public class EditSessionEvent extends Event implements Cancellable {
         this.extent = extent;
     }
 
-    @Override
-    public boolean isCancelled() {
-        return cancelled;
-    }
-
-    @Override
-    public void setCancelled(boolean cancelled) {
-        this.cancelled = cancelled;
-    }
-
     /**
      * Create a clone of this event with the given stage.
      *
@@ -169,10 +145,7 @@ public class EditSessionEvent extends Event implements Cancellable {
      * @return a new event
      */
     public EditSessionEvent clone(Stage stage) {
-        EditSessionEvent clone = new EditSessionEvent(world, actor, maxBlocks, stage);
-        clone.setEditSession(session);
-        return clone;
+        return new EditSessionEvent(world, actor, maxBlocks, stage);
     }
-
 
 }

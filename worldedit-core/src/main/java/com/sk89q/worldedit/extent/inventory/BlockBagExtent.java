@@ -26,25 +26,18 @@ import static com.google.common.base.Preconditions.checkNotNull;
  */
 public class BlockBagExtent extends AbstractDelegateExtent {
 
-    private final boolean mine;
-    private int[] missingBlocks = new int[BlockTypes.size()];
+    private Map<BlockType, Integer> missingBlocks = new HashMap<>();
     private BlockBag blockBag;
 
     /**
      * Create a new instance.
      *
-     * @param extent   the extent
+     * @param extent the extent
      * @param blockBag the block bag
      */
-    public BlockBagExtent(Extent extent, @Nonnull BlockBag blockBag) {
-        this(extent, blockBag, false);
-    }
-
-    public BlockBagExtent(Extent extent, @Nonnull BlockBag blockBag, boolean mine) {
+    public BlockBagExtent(Extent extent, @Nullable BlockBag blockBag) {
         super(extent);
-        checkNotNull(blockBag);
         this.blockBag = blockBag;
-        this.mine = mine;
     }
 
     /**
@@ -52,9 +45,7 @@ public class BlockBagExtent extends AbstractDelegateExtent {
      *
      * @return a block bag, which may be null if none is used
      */
-    public
-    @Nullable
-    BlockBag getBlockBag() {
+    public @Nullable BlockBag getBlockBag() {
         return blockBag;
     }
 
@@ -74,52 +65,41 @@ public class BlockBagExtent extends AbstractDelegateExtent {
      * @return a map of missing blocks
      */
     public Map<BlockType, Integer> popMissing() {
-        HashMap<BlockType, Integer> map = new HashMap<>();
-        for (int i = 0; i < missingBlocks.length; i++) {
-            int count = missingBlocks[i];
-            if (count > 0) {
-                map.put(BlockTypes.get(i), count);
+        Map<BlockType, Integer> missingBlocks = this.missingBlocks;
+        this.missingBlocks = new HashMap<>();
+        return missingBlocks;
+    }
+
+    @Override
+    public <B extends BlockStateHolder<B>> boolean setBlock(BlockVector3 position, B block) throws WorldEditException {
+        if (blockBag != null) {
+            BlockState existing = getExtent().getBlock(position);
+
+            if (!block.getBlockType().equals(existing.getBlockType())) {
+                if (!block.getBlockType().getMaterial().isAir()) {
+                    try {
+                        blockBag.fetchPlacedBlock(block.toImmutableState());
+                    } catch (UnplaceableBlockException e) {
+                        return false;
+                    } catch (BlockBagException e) {
+                        if (!missingBlocks.containsKey(block.getBlockType())) {
+                            missingBlocks.put(block.getBlockType(), 1);
+                        } else {
+                            missingBlocks.put(block.getBlockType(), missingBlocks.get(block.getBlockType()) + 1);
+                        }
+                        return false;
+                    }
+                }
+
+                if (!existing.getBlockType().getMaterial().isAir()) {
+                    try {
+                        blockBag.storeDroppedBlock(existing);
+                    } catch (BlockBagException ignored) {
+                    }
+                }
             }
         }
-        Arrays.fill(missingBlocks, 0);
-        return map;
+
+        return super.setBlock(position, block);
     }
-
-    @Override
-    public <B extends BlockStateHolder<B>> boolean setBlock(BlockVector3 pos, B block) throws WorldEditException {
-        return setBlock(pos.getBlockX(), pos.getBlockY(), pos.getBlockZ(), block);
-    }
-
-    @Override
-    public <B extends BlockStateHolder<B>> boolean setBlock(int x, int y, int z, B block) throws WorldEditException {
-        if(blockBag != null) {
-            BlockStateHolder lazyBlock = getExtent().getLazyBlock(x, y, z);
-            BlockType fromType = lazyBlock.getBlockType();
-        	if(!block.getBlockType().equals(fromType)) {
-				BlockType type = block.getBlockType();
-		        if (!type.getMaterial().isAir()) {
-		            try {
-		                blockBag.fetchPlacedBlock(block.toImmutableState());
-		            } catch (UnplaceableBlockException e) {
-		                throw new FaweException.FaweBlockBagException();
-		            } catch (BlockBagException e) {
-		                missingBlocks[type.getInternalId()]++;
-		                throw new FaweException.FaweBlockBagException();
-		            }
-		        }
-		        if (mine) {
-	
-		            if (!fromType.getMaterial().isAir()) {
-		                try {
-		                    blockBag.storeDroppedBlock(fromType.getDefaultState());
-		                } catch (BlockBagException ignored) {
-		                }
-		            }
-		        }
-        	}
-        }
-        return getExtent().setBlock(x, y, z, block);
-    }
-
-
 }

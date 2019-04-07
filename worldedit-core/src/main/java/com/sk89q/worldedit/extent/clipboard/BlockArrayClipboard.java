@@ -57,92 +57,33 @@ import static com.google.common.base.Preconditions.checkNotNull;
  * Stores block data as a multi-dimensional array of {@link BlockState}s and
  * other data as lists or maps.
  */
-public class BlockArrayClipboard implements Clipboard, LightingExtent, Closeable {
+public class BlockArrayClipboard implements Clipboard {
 
-	private Region region;
+    private final Region region;
     private BlockVector3 origin;
-    public FaweClipboard IMP;
-    private BlockVector3 size;
-    private int mx;
-    private int my;
-    private int mz;
-    private BlockStateHolder[][][] blocks;
+    private final BaseBlock[][][] blocks;
+    private BiomeType[][] biomes = null;
     private final List<ClipboardEntity> entities = new ArrayList<>();
-    
-    public BlockArrayClipboard(Region region) {
-        checkNotNull(region);
-        this.region = region.clone();
-        this.size = getDimensions();
-        this.IMP = Settings.IMP.CLIPBOARD.USE_DISK ? new DiskOptimizedClipboard(size.getBlockX(), size.getBlockY(), size.getBlockZ()) : new MemoryOptimizedClipboard(size.getBlockX(), size.getBlockY(), size.getBlockZ());
-        this.origin = region.getMinimumPoint();
-        this.mx = origin.getBlockX();
-        this.my = origin.getBlockY();
-        this.mz = origin.getBlockZ();
-        this.blocks = new BlockStateHolder[size.getBlockX()][size.getBlockY()][size.getBlockZ()];
-    }
 
     /**
      * Create a new instance.
-     * <p>
+     *
      * <p>The origin will be placed at the region's lowest minimum point.</p>
      *
      * @param region the bounding region
      */
-    public BlockArrayClipboard(Region region, UUID clipboardId) {
+    public BlockArrayClipboard(Region region) {
         checkNotNull(region);
         this.region = region.clone();
-        this.size = getDimensions();
-        this.IMP = Settings.IMP.CLIPBOARD.USE_DISK ? new DiskOptimizedClipboard(size.getBlockX(), size.getBlockY(), size.getBlockZ(), clipboardId) : new MemoryOptimizedClipboard(size.getBlockX(), size.getBlockY(), size.getBlockZ());
         this.origin = region.getMinimumPoint();
-        this.mx = origin.getBlockX();
-        this.my = origin.getBlockY();
-        this.mz = origin.getBlockZ();
-        this.blocks = new BlockStateHolder[size.getBlockX()][size.getBlockY()][size.getBlockZ()];
-    }
 
-    public BlockArrayClipboard(Region region, FaweClipboard clipboard) {
-        checkNotNull(region);
-        this.region = region.clone();
-        this.size = getDimensions();
-        this.origin = region.getMinimumPoint();
-        this.mx = origin.getBlockX();
-        this.my = origin.getBlockY();
-        this.mz = origin.getBlockZ();
-        this.IMP = clipboard;
-        this.blocks = new BlockStateHolder[size.getBlockX()][size.getBlockY()][size.getBlockZ()];
-    }
-
-    public void init(Region region, FaweClipboard fc) {
-        checkNotNull(region);
-        checkNotNull(fc);
-        this.region = region.clone();
-        this.size = getDimensions();
-        this.IMP = fc;
-        this.origin = region.getMinimumPoint();
-        this.mx = origin.getBlockX();
-        this.my = origin.getBlockY();
-        this.mz = origin.getBlockZ();
-        this.blocks = new BlockStateHolder[size.getBlockX()][size.getBlockY()][size.getBlockZ()];
-    }
-
-    @Override
-    protected void finalize() throws Throwable {
-        close();
-    }
-
-    @Override
-    public void close() {
-        IMP.close();
-
+        BlockVector3 dimensions = getDimensions();
+        blocks = new BaseBlock[dimensions.getBlockX()][dimensions.getBlockY()][dimensions.getBlockZ()];
     }
 
     @Override
     public Region getRegion() {
         return region;
-    }
-
-    public void setRegion(Region region) {
-        this.region = region;
     }
 
     @Override
@@ -153,7 +94,6 @@ public class BlockArrayClipboard implements Clipboard, LightingExtent, Closeable
     @Override
     public void setOrigin(BlockVector3 origin) {
         this.origin = origin;
-        IMP.setOrigin(origin.subtract(region.getMinimumPoint()));
     }
 
     @Override
@@ -174,8 +114,8 @@ public class BlockArrayClipboard implements Clipboard, LightingExtent, Closeable
     @Override
     public List<? extends Entity> getEntities(Region region) {
         List<Entity> filtered = new ArrayList<>();
-        for (Entity entity : getEntities()) {
-            if (region.contains(entity.getLocation().toBlockPoint())) {
+        for (Entity entity : entities) {
+            if (region.contains(entity.getLocation().toVector().toBlockPoint())) {
                 filtered.add(entity);
             }
         }
@@ -184,85 +124,76 @@ public class BlockArrayClipboard implements Clipboard, LightingExtent, Closeable
 
     @Override
     public List<? extends Entity> getEntities() {
-        return IMP.getEntities();
+        return Collections.unmodifiableList(entities);
     }
 
     @Nullable
     @Override
     public Entity createEntity(Location location, BaseEntity entity) {
-        return IMP.createEntity(location.getExtent(), location.getX(), location.getY(), location.getZ(), location.getYaw(), location.getPitch(), entity);
+        ClipboardEntity ret = new ClipboardEntity(location, entity);
+        entities.add(ret);
+        return ret;
     }
 
     @Override
     public BlockState getBlock(BlockVector3 position) {
         if (region.contains(position)) {
-            int x = position.getBlockX() - mx;
-            int y = position.getBlockY() - my;
-            int z = position.getBlockZ() - mz;
-            return IMP.getBlock(x, y, z).toImmutableState();
+            BlockVector3 v = position.subtract(region.getMinimumPoint());
+            BaseBlock block = blocks[v.getBlockX()][v.getBlockY()][v.getBlockZ()];
+            if (block != null) {
+                return block.toImmutableState();
+            }
         }
-        return EditSession.nullBlock;
-    }
 
-    public BlockState getBlockAbs(int x, int y, int z) {
-        return IMP.getBlock(x, y, z).toImmutableState();
-    }
-
-    @Override
-    public BlockState getLazyBlock(BlockVector3 position) {
-        return getBlock(position);
+        return BlockTypes.AIR.getDefaultState();
     }
 
     @Override
     public BaseBlock getFullBlock(BlockVector3 position) {
-    	if(region.contains(position)) {
-            int x = position.getBlockX() - mx;
-            int y = position.getBlockY() - my;
-            int z = position.getBlockZ() - mz;
-    		return IMP.getBlock(x, y, z);
-    	}
-    	return EditSession.nullBlock.toBaseBlock();
-    }
-
-    @Override
-    public <B extends BlockStateHolder<B>> boolean setBlock(BlockVector3 location, B block) throws WorldEditException {
-        if (region.contains(location)) {
-            final int x = location.getBlockX();
-            final int y = location.getBlockY();
-            final int z = location.getBlockZ();
-            return setBlock(x, y, z, block);
+        if (region.contains(position)) {
+            BlockVector3 v = position.subtract(region.getMinimumPoint());
+            BaseBlock block = blocks[v.getBlockX()][v.getBlockY()][v.getBlockZ()];
+            if (block != null) {
+                return block;
+            }
         }
-        return false;
-    }
 
-    public boolean setTile(int x, int y, int z, CompoundTag tag) {
-        x -= mx;
-        y -= my;
-        z -= mz;
-        return IMP.setTile(x, y, z, tag);
+        return BlockTypes.AIR.getDefaultState().toBaseBlock();
     }
 
     @Override
-    public <B extends BlockStateHolder<B>> boolean setBlock(int x, int y, int z, B block) throws WorldEditException {
-        x -= mx;
-        y -= my;
-        z -= mz;
-        return IMP.setBlock(x, y, z, block);
+    public <B extends BlockStateHolder<B>> boolean setBlock(BlockVector3 position, B block) throws WorldEditException {
+        if (region.contains(position)) {
+            BlockVector3 v = position.subtract(region.getMinimumPoint());
+            blocks[v.getBlockX()][v.getBlockY()][v.getBlockZ()] = block.toBaseBlock();
+            return true;
+        } else {
+            return false;
+        }
     }
 
     @Override
     public BiomeType getBiome(BlockVector2 position) {
-        int x = position.getBlockX() - mx;
-        int z = position.getBlockZ() - mz;
-        return IMP.getBiome(x, z);
+        if (biomes != null
+                && position.containedWithin(getMinimumPoint().toBlockVector2(), getMaximumPoint().toBlockVector2())) {
+            BlockVector2 v = position.subtract(region.getMinimumPoint().toBlockVector2());
+            return biomes[v.getBlockX()][v.getBlockZ()];
+        }
+
+        return BiomeTypes.OCEAN;
     }
 
     @Override
     public boolean setBiome(BlockVector2 position, BiomeType biome) {
-        int x = position.getBlockX() - mx;
-        int z = position.getBlockZ() - mz;
-        IMP.setBiome(x, z, biome);
-        return true;
+        if (position.containedWithin(getMinimumPoint().toBlockVector2(), getMaximumPoint().toBlockVector2())) {
+            BlockVector2 v = position.subtract(region.getMinimumPoint().toBlockVector2());
+            if (biomes == null) {
+                biomes = new BiomeType[region.getWidth()][region.getLength()];
+            }
+            biomes[v.getBlockX()][v.getBlockZ()] = biome;
+            return true;
+        }
+        return false;
     }
 
     @Nullable
@@ -271,30 +202,24 @@ public class BlockArrayClipboard implements Clipboard, LightingExtent, Closeable
         return null;
     }
 
+    /**
+     * Stores entity data.
+     */
+    private class ClipboardEntity extends StoredEntity {
+        ClipboardEntity(Location location, BaseEntity entity) {
+            super(location, entity);
+        }
 
+        @Override
+        public boolean remove() {
+            return entities.remove(this);
+        }
 
-    @Override
-    public int getLight(int x, int y, int z) {
-        return getBlockLight(x, y, z);
+        @Nullable
+        @Override
+        public <T> T getFacet(Class<? extends T> cls) {
+            return null;
+        }
     }
 
-    @Override
-    public int getSkyLight(int x, int y, int z) {
-        return 0;
-    }
-
-    @Override
-    public int getBlockLight(int x, int y, int z) {
-        return getBrightness(x, y, z);
-    }
-
-    @Override
-    public int getOpacity(int x, int y, int z) {
-        return getBlock(BlockVector3.at(x, y, z)).getBlockType().getMaterial().getLightOpacity();
-    }
-
-    @Override
-    public int getBrightness(int x, int y, int z) {
-        return getBlock(BlockVector3.at(x, y, z)).getBlockType().getMaterial().getLightValue();
-    }
 }

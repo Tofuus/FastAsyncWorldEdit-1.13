@@ -59,14 +59,9 @@ import javax.annotation.Nullable;
  * Transforms blocks themselves (but not their position) according to a
  * given transform.
  */
-public class BlockTransformExtent extends ResettableExtent {
+public class BlockTransformExtent extends AbstractDelegateExtent {
 
-    private Transform transform;
-
-    
-    public BlockTransformExtent(Extent parent) {
-        this(parent, new AffineTransform());
-    }
+    private final Transform transform;
 
     /**
      * Create a new instance.
@@ -87,15 +82,6 @@ public class BlockTransformExtent extends ResettableExtent {
     public Transform getTransform() {
         return transform;
     }
-    
-    /**
-     * Set the transform
-     * @param affine
-     */
-    public void setTransform(Transform affine) {
-        this.transform = affine;
-    }
-
 
     /**
      * Transform a block without making a copy.
@@ -104,18 +90,8 @@ public class BlockTransformExtent extends ResettableExtent {
      * @param reverse true to transform in the opposite direction
      * @return the same block
      */
-    protected <T extends BlockStateHolder<T>> T transformBlock(T block, boolean reverse) {
+    private <T extends BlockStateHolder<T>> T transformBlock(T block, boolean reverse) {
         return transform(block, reverse ? transform.inverse() : transform);
-    }
-    
-    @Override
-    public BlockState getLazyBlock(BlockVector3 position) {
-    	return transformBlock(super.getLazyBlock(position), false).toImmutableState();
-    }
-    
-    @Override
-    public BlockState getLazyBlock(int x, int y, int z) {
-        return transformBlock(super.getLazyBlock(x, y, z), false).toImmutableState();
     }
 
     @Override
@@ -127,17 +103,12 @@ public class BlockTransformExtent extends ResettableExtent {
     public BaseBlock getFullBlock(BlockVector3 position) {
         return transformBlock(super.getFullBlock(position), false);
     }
-    
-    @Override
-    public <B extends BlockStateHolder<B>> boolean setBlock(int x, int y, int z, B block) throws WorldEditException {
-        return super.setBlock(x, y, z, transformBlock(block, true));
-    }
 
     @Override
     public <B extends BlockStateHolder<B>> boolean setBlock(BlockVector3 location, B block) throws WorldEditException {
         return super.setBlock(location, transformBlock(block, true));
     }
-    
+
     private static final Set<String> directionNames = Sets.newHashSet("north", "south", "east", "west");
 
     /**

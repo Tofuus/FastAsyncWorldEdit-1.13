@@ -262,12 +262,12 @@ public class AnvilChunk implements Chunk {
             WorldEdit.logger.warn("Unknown legacy block " + id + ":" + data + " found when loading legacy anvil chunk.");
             return BlockTypes.AIR.getDefaultState().toBaseBlock();
         }
-        if (state.getMaterial().hasContainer()) {
-            CompoundTag tileEntity = getBlockTileEntity(position);
-            if (tileEntity != null) {
-                return state.toBaseBlock(tileEntity);
-            }
+        CompoundTag tileEntity = getBlockTileEntity(position);
+
+        if (tileEntity != null) {
+            return state.toBaseBlock(tileEntity);
         }
+
         return state.toBaseBlock();
     }
 

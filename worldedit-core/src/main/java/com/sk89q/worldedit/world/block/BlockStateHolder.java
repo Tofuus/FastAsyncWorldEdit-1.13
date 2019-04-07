@@ -28,7 +28,7 @@ import com.sk89q.worldedit.world.registry.BlockMaterial;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public interface BlockStateHolder<B extends BlockStateHolder<B>> extends FawePattern {
+public interface BlockStateHolder<B extends BlockStateHolder<B>> {
 
     /**
      * Get the block type
@@ -36,39 +36,6 @@ public interface BlockStateHolder<B extends BlockStateHolder<B>> extends FawePat
      * @return The type
      */
     BlockType getBlockType();
-
-    /**
-     * Magic number (legacy uses)
-     * @param propertyId
-     * @return
-     */
-    @Deprecated
-    B withPropertyId(int propertyId);
-
-    /**
-     * Get combined id (legacy uses)
-     * @return
-     */
-    @Deprecated
-    int getInternalId();
-
-    @Deprecated
-    int getOrdinal();
-
-    BlockMaterial getMaterial();
-    /**
-     * Get type id (legacy uses)
-     * @return
-     */
-    @Deprecated
-    int getInternalBlockTypeId();
-
-    /**
-     * Get the block data (legacy uses)
-     * @return
-     */
-    @Deprecated
-    int getInternalPropertiesId();
 
     /**
      * Returns a BlockState with the given state and value applied.
@@ -80,29 +47,12 @@ public interface BlockStateHolder<B extends BlockStateHolder<B>> extends FawePat
     <V> B with(final Property<V> property, final V value);
 
     /**
-     * Returns a BlockStateHolder with the given state and value applied.
-     *
-     * @param property The property key
-     * @param value The value
-     * @return The modified state, or same if could not be applied
-     */
-    <V> B with(final PropertyKey property, final V value);
-
-    /**
      * Gets the value at the given state
      *
      * @param property The state
      * @return The value
      */
     <V> V getState(Property<V> property);
-
-    /**
-     * Gets the value at the given state
-     *
-     * @param property The state
-     * @return The value
-     */
-    <V> V getState(final PropertyKey property);
 
     /**
      * Gets an immutable collection of the states.

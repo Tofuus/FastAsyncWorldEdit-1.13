@@ -125,13 +125,11 @@ public final class Functions {
     }
 
     private static final Map<String, List<Overload>> functions = new HashMap<>();
-
     static {
         for (Method method : Functions.class.getMethods()) {
             try {
                 addFunction(method);
-            } catch (IllegalArgumentException ignored) {
-            }
+            } catch (IllegalArgumentException ignored) { }
         }
     }
 
@@ -141,10 +139,7 @@ public final class Functions {
 
         Overload overload = new Overload(method);
 
-        List<Overload> overloads = functions.get(methodName);
-        if (overloads == null) {
-            functions.put(methodName, overloads = new ArrayList<>());
-        }
+        List<Overload> overloads = functions.computeIfAbsent(methodName, k -> new ArrayList<>());
 
         overloads.add(overload);
     }
@@ -256,6 +251,7 @@ public final class Functions {
         return Math.log10(x.getValue());
     }
 
+
     public static double rotate(LValue x, LValue y, RValue angle) throws EvaluationException {
         final double f = angle.getValue();
 
@@ -327,26 +323,26 @@ public final class Functions {
     @Dynamic
     public static double closest(RValue x, RValue y, RValue z, RValue index, RValue count, RValue stride) throws EvaluationException {
         return findClosest(
-                Expression.getInstance().getFunctions().megabuf,
-                x.getValue(),
-                y.getValue(),
-                z.getValue(),
-                (int) index.getValue(),
-                (int) count.getValue(),
-                (int) stride.getValue()
+            Expression.getInstance().getFunctions().megabuf,
+            x.getValue(),
+            y.getValue(),
+            z.getValue(),
+            (int) index.getValue(),
+            (int) count.getValue(),
+            (int) stride.getValue()
         );
     }
 
     @Dynamic
     public static double gclosest(RValue x, RValue y, RValue z, RValue index, RValue count, RValue stride) throws EvaluationException {
         return findClosest(
-                gmegabuf,
-                x.getValue(),
-                y.getValue(),
-                z.getValue(),
-                (int) index.getValue(),
-                (int) count.getValue(),
-                (int) stride.getValue()
+            gmegabuf,
+            x.getValue(),
+            y.getValue(),
+            z.getValue(),
+            (int) index.getValue(),
+            (int) count.getValue(),
+            (int) stride.getValue()
         );
     }
 
@@ -355,11 +351,11 @@ public final class Functions {
         double minDistanceSquared = Double.MAX_VALUE;
 
         for (int i = 0; i < count; ++i) {
-            double currentX = getBufferItem(megabuf, index + 0) - x;
-            double currentY = getBufferItem(megabuf, index + 1) - y;
-            double currentZ = getBufferItem(megabuf, index + 2) - z;
+            double currentX = getBufferItem(megabuf, index+0) - x;
+            double currentY = getBufferItem(megabuf, index+1) - y;
+            double currentZ = getBufferItem(megabuf, index+2) - z;
 
-            double currentDistanceSquared = currentX * currentX + currentY * currentY + currentZ * currentZ;
+            double currentDistanceSquared = currentX*currentX + currentY*currentY + currentZ*currentZ;
 
             if (currentDistanceSquared < minDistanceSquared) {
                 minDistanceSquared = currentDistanceSquared;
@@ -488,6 +484,5 @@ public final class Functions {
 
         return queryInternal(type, data, typeId, dataValue);
     }
-
 
 }

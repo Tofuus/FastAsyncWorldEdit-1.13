@@ -46,9 +46,4 @@ public class BundledItemRegistry implements ItemRegistry {
         }
         return null;
     }
-
-    @Override
-    public Collection<String> registerItems() {
-        return Collections.emptyList();
-    }
 }

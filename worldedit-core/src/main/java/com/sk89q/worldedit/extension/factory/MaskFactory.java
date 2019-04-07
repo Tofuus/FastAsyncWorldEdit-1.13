@@ -55,8 +55,19 @@ public final class MaskFactory extends AbstractFactory<Mask> {
      */
     public MaskFactory(WorldEdit worldEdit) {
         super(worldEdit);
+
+        register(new ExistingMaskParser(worldEdit));
+        register(new SolidMaskParser(worldEdit));
+        register(new LazyRegionMaskParser(worldEdit));
+        register(new RegionMaskParser(worldEdit));
         register(new BlockCategoryMaskParser(worldEdit));
-        register(new DefaultMaskParser(worldEdit));
+        register(new OffsetMaskParser(worldEdit));
+        register(new BiomeMaskParser(worldEdit));
+        register(new NoiseMaskParser(worldEdit));
+        register(new BlockStateMaskParser(worldEdit));
+        register(new NegateMaskParser(worldEdit));
+        register(new ExpressionMaskParser(worldEdit));
+        register(new BlocksMaskParser(worldEdit));
     }
 
     @Override
@@ -83,7 +94,7 @@ public final class MaskFactory extends AbstractFactory<Mask> {
             case 1:
                 return masks.get(0);
             default:
-                return new MaskIntersection(masks).optimize();
+                return new MaskIntersection(masks);
         }
     }
 

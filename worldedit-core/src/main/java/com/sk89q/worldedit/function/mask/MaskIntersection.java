@@ -35,8 +35,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
  */
 public class MaskIntersection extends AbstractMask {
 
-    private final Set<Mask> masks = new LinkedHashSet<>();
-    private Mask[] masksArray;
+    private final Set<Mask> masks = new HashSet<>();
 
     /**
      * Create a new intersection.
@@ -46,7 +45,6 @@ public class MaskIntersection extends AbstractMask {
     public MaskIntersection(Collection<Mask> masks) {
         checkNotNull(masks);
         this.masks.addAll(masks);
-        formArray();
     }
 
     /**
@@ -58,81 +56,6 @@ public class MaskIntersection extends AbstractMask {
         this(Arrays.asList(checkNotNull(mask)));
     }
 
-    private void formArray() {
-        if (masks.isEmpty()) {
-            masksArray = new Mask[]{Masks.alwaysFalse()};
-        } else {
-            masksArray = masks.toArray(new Mask[masks.size()]);
-        }
-    }
-
-    public Function<Map.Entry<Mask, Mask>, Mask> pairingFunction() {
-        return input -> input.getKey().and(input.getValue());
-    }
-
-    private void optimizeMasks(Set<Mask> ignore) {
-        LinkedHashSet<Mask> newMasks = null;
-        for (Mask mask : masks) {
-            if (ignore.contains(mask)) continue;
-            Mask newMask = mask.optimize();
-            if (newMask != null) {
-                if (newMask != mask) {
-                    if (newMasks == null) newMasks = new LinkedHashSet<>();
-                    newMasks.add(newMask);
-                }
-            } else {
-                ignore.add(mask);
-            }
-            if (newMasks != null) {
-                masks.clear();
-                masks.addAll(newMasks);
-            }
-        }
-    }
-
-    @Override
-    public Mask optimize() {
-        Set<Mask> optimized = new HashSet<>();
-        Set<Map.Entry<Mask, Mask>> failedCombines = new HashSet<>();
-        // Combine the masks
-        while (combine(pairingFunction(), failedCombines));
-        // Optimize / combine
-        do optimizeMasks(optimized);
-        while (combine(pairingFunction(), failedCombines));
-        // Return result
-        formArray();
-        if (masks.size() == 0) return Masks.alwaysTrue();
-        if (masks.size() == 1) return masks.iterator().next();
-        return this;
-    }
-
-    private boolean combine(Function<Map.Entry<Mask, Mask>, Mask> pairing, Set<Map.Entry<Mask, Mask>> failedCombines) {
-        boolean hasOptimized = false;
-        while (true) {
-            Mask[] result = null;
-            outer:
-            for (Mask mask : masks) {
-                for (Mask other : masks) {
-                    AbstractMap.SimpleEntry pair = new AbstractMap.SimpleEntry(mask, other);
-                    if (failedCombines.contains(pair)) continue;
-                    Mask combined = pairing.apply(pair);
-                    if (combined != null) {
-                        result = new Mask[]{combined, mask, other};
-                        break outer;
-                    } else {
-                        failedCombines.add(pair);
-                    }
-                }
-            }
-            if (result == null) break;
-            masks.remove(result[1]);
-            masks.remove(result[2]);
-            masks.add(result[0]);
-            hasOptimized = true;
-        }
-        return hasOptimized;
-    }
-
     /**
      * Add some masks to the list.
      *
@@ -141,7 +64,6 @@ public class MaskIntersection extends AbstractMask {
     public void add(Collection<Mask> masks) {
         checkNotNull(masks);
         this.masks.addAll(masks);
-        formArray();
     }
 
     /**
@@ -162,10 +84,6 @@ public class MaskIntersection extends AbstractMask {
         return masks;
     }
 
-    public final Mask[] getMasksArray() {
-        return masksArray;
-    }
-
     @Override
     public boolean test(BlockVector3 vector) {
         if (masks.isEmpty()) {
@@ -177,6 +95,7 @@ public class MaskIntersection extends AbstractMask {
                 return false;
             }
         }
+
         return true;
     }
 
@@ -194,4 +113,5 @@ public class MaskIntersection extends AbstractMask {
         }
         return new MaskIntersection2D(mask2dList);
     }
+
 }

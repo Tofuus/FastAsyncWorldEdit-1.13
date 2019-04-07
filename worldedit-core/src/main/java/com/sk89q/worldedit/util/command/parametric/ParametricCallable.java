@@ -49,7 +49,7 @@ import java.util.Set;
 /**
  * The implementation of a {@link CommandCallable} for the {@link ParametricBuilder}.
  */
-public class ParametricCallable extends AParametricCallable {
+class ParametricCallable implements CommandCallable {
 
     private final ParametricBuilder builder;
     private final Object object;
@@ -60,33 +60,31 @@ public class ParametricCallable extends AParametricCallable {
     private final Set<Character> legacyFlags = new HashSet<>();
     private final SimpleDescription description = new SimpleDescription();
     private final CommandPermissions commandPermissions;
-    private final Command definition;
 
     /**
      * Create a new instance.
-     *
-     * @param builder    the parametric builder
-     * @param object     the object to invoke on
-     * @param method     the method to invoke
+     * 
+     * @param builder the parametric builder
+     * @param object the object to invoke on
+     * @param method the method to invoke
      * @param definition the command definition annotation
      * @throws ParametricException thrown on an error
      */
-    public ParametricCallable(ParametricBuilder builder, Object object, Method method, Command definition) throws ParametricException {
+    ParametricCallable(ParametricBuilder builder, Object object, Method method, Command definition) throws ParametricException {
         this.builder = builder;
         this.object = object;
         this.method = method;
-
+        
         Annotation[][] annotations = method.getParameterAnnotations();
         String[] names = builder.getParanamer().lookupParameterNames(method, false);
         Type[] types = method.getGenericParameterTypes();
-
         parameters = new ParameterData[types.length];
         List<Parameter> userParameters = new ArrayList<>();
-
+        
         // This helps keep tracks of @Nullables that appear in the middle of a list
         // of parameters
         int numOptional = 0;
-
+        
         // Set permission hint
         CommandPermissions permHint = method.getAnnotation(CommandPermissions.class);
         if (permHint != null) {
@@ -96,7 +94,7 @@ public class ParametricCallable extends AParametricCallable {
         // Go through each parameter
         for (int i = 0; i < types.length; i++) {
             Type type = types[i];
-
+            
             ParameterData parameter = new ParameterData();
             parameter.setType(type);
             parameter.setModifiers(annotations[i]);
@@ -111,9 +109,9 @@ public class ParametricCallable extends AParametricCallable {
                     if (value.length > 0) {
                         parameter.setDefaultValue(value);
                     }
-                    // Special annotation bindings
+                // Special annotation bindings
                 } else if (parameter.getBinding() == null) {
-                    parameter.setBinding(builder.getBindings());
+                    parameter.setBinding(builder.getBindings().get(annotation.annotationType()));
                     parameter.setClassifier(annotation);
                 }
             }
@@ -127,17 +125,17 @@ public class ParametricCallable extends AParametricCallable {
 
             // No special @annotation binding... let's check for the type
             if (parameter.getBinding() == null) {
-                parameter.setBinding(builder.getBindings());
+                parameter.setBinding(builder.getBindings().get(type));
 
                 // Don't know how to parse for this type of value
                 if (parameter.getBinding() == null) {
                     throw new ParametricException("Don't know how to handle the parameter type '" + type + "' in\n" + method.toGenericString());
                 }
             }
-
+            
             // Do some validation of this parameter
             parameter.validate(method, i + 1);
-
+            
             // Keep track of optional parameters
             if (parameter.isOptional() && parameter.getFlag() == null) {
                 numOptional++;
@@ -145,17 +143,17 @@ public class ParametricCallable extends AParametricCallable {
                 if (numOptional > 0 && parameter.isNonFlagConsumer()) {
                     if (parameter.getConsumedCount() < 0) {
                         throw new ParametricException(
-                                "Found an parameter using the binding " +
-                                        parameter.getBinding().getClass().getCanonicalName() +
-                                        "\nthat does not know how many arguments it consumes, but " +
-                                        "it follows an optional parameter\nMethod: " +
-                                        method.toGenericString());
+                                "Found an parameter using the binding " + 
+                                parameter.getBinding().getClass().getCanonicalName() + 
+                                "\nthat does not know how many arguments it consumes, but " +
+                                "it follows an optional parameter\nMethod: " +
+                                method.toGenericString());
                     }
                 }
             }
-
+            
             parameters[i] = parameter;
-
+            
             // Make a list of "real" parameters
             if (parameter.isUserInput()) {
                 userParameters.add(parameter);
@@ -174,28 +172,12 @@ public class ParametricCallable extends AParametricCallable {
         for (InvokeListener listener : builder.getInvokeListeners()) {
             listener.updateDescription(object, method, parameters, description);
         }
-
+        
         // Set parameters
         description.setParameters(userParameters);
 
         // Get permissions annotation
         commandPermissions = method.getAnnotation(CommandPermissions.class);
-        this.definition = definition;
-    }
-
-    @Override
-    public Command getCommand() {
-        return object.getClass().getAnnotation(Command.class);
-    }
-
-    @Override
-    public Command getDefinition() {
-        return definition;
-    }
-
-    @Override
-    public String getGroup() {
-        return object.getClass().getSimpleName().replaceAll("Commands", "").replaceAll("Util$", "");
     }
 
     @Override
@@ -204,10 +186,9 @@ public class ParametricCallable extends AParametricCallable {
         if (parentCommands.length != 0 && !testPermission(locals)) {
             throw new CommandPermissionsException();
         }
-        locals.putIfAbsent(CommandCallable.class, this);
 
         String calledCommand = parentCommands.length > 0 ? parentCommands[parentCommands.length - 1] : "_";
-        String[] split = (calledCommand + " " + stringArguments).split(" ", -1);
+        String[] split = CommandContext.split(calledCommand + " " + stringArguments);
         CommandContext context = new CommandContext(split, getValueFlags(), false, locals);
 
         // Provide help if -? is specified
@@ -237,15 +218,13 @@ public class ParametricCallable extends AParametricCallable {
                     ArgumentStack usedArguments = getScopedContext(parameter, arguments);
 
                     try {
-                        usedArguments.mark();
                         args[i] = parameter.getBinding().bind(parameter, usedArguments, false);
-                    } catch (ParameterException e) {
+                    } catch (MissingParameterException e) {
                         // Not optional? Then we can't execute this command
                         if (!parameter.isOptional()) {
                             throw e;
                         }
 
-                        usedArguments.reset();
                         args[i] = getDefaultValue(i, arguments);
                     }
                 } else {
@@ -262,22 +241,21 @@ public class ParametricCallable extends AParametricCallable {
             }
 
             // Execute!
-            Object result = method.invoke(object, args);
+            method.invoke(object, args);
 
             // postInvoke handlers
             for (InvokeHandler handler : handlers) {
                 handler.postInvoke(handler, method, parameters, args, context);
             }
-            return result;
         } catch (MissingParameterException e) {
-            throw new InvalidUsageException("Too few parameters!", this, true);
+            throw new InvalidUsageException("Too few parameters!", this);
         } catch (UnconsumedParameterException e) {
-            throw new InvalidUsageException("Too many parameters! Unused parameters: " + e.getUnconsumed(), this, true);
+            throw new InvalidUsageException("Too many parameters! Unused parameters: " + e.getUnconsumed(), this);
         } catch (ParameterException e) {
             assert parameter != null;
             String name = parameter.getName();
 
-            throw new InvalidUsageException("For parameter '" + name + "': " + e.getMessage(), this, true);
+            throw new InvalidUsageException("For parameter '" + name + "': " + e.getMessage(), this);
         } catch (InvocationTargetException e) {
             if (e.getCause() instanceof CommandException) {
                 throw (CommandException) e.getCause();
@@ -286,19 +264,13 @@ public class ParametricCallable extends AParametricCallable {
         } catch (Throwable t) {
             throw new WrappedCommandException(t);
         }
-    }
 
-    public Object getObject() {
-        return object;
-    }
-
-    public Method getMethod() {
-        return method;
+        return true;
     }
 
     @Override
-    public ParameterData[] getParameters() {
-        return parameters;
+    public List<String> getSuggestions(String arguments, CommandLocals locals) throws CommandException {
+        return builder.getDefaultCompleter().getSuggestions(arguments, locals);
     }
 
     /**
@@ -311,44 +283,189 @@ public class ParametricCallable extends AParametricCallable {
     }
 
     @Override
-    public Set<Character> getLegacyFlags() {
-        return legacyFlags;
-    }
-
-    @Override
     public SimpleDescription getDescription() {
         return description;
     }
 
     @Override
-    public String[] getPermissions() {
-        return commandPermissions != null ? commandPermissions.value() : new String[0];
-    }
+    public boolean testPermission(CommandLocals locals) {
+        if (commandPermissions != null) {
+            for (String perm : commandPermissions.value()) {
+                if (builder.getAuthorizer().testPermission(locals, perm)) {
+                    return true;
+                }
+            }
 
-    @Override
-    public ParametricBuilder getBuilder() {
-        return builder;
-    }
-
-    @Override
-    public boolean anyFlags() {
-        return anyFlags;
-    }
-
-    @Override
-    public String toString() {
-        return method.toGenericString();
+            return false;
+        } else {
+            return true;
+        }
     }
 
     /**
+     * Get the right {@link ArgumentStack}.
+     * 
+     * @param parameter the parameter
+     * @param existing the existing scoped context
+     * @return the context to use
+     */
+    private static ArgumentStack getScopedContext(Parameter parameter, ArgumentStack existing) {
+        if (parameter.getFlag() != null) {
+            CommandContext context = existing.getContext();
+            
+            if (parameter.isValueFlag()) {
+                return new StringArgumentStack(context, context.getFlag(parameter.getFlag()), false);
+            } else {
+                String v = context.hasFlag(parameter.getFlag()) ? "true" : "false";
+                return new StringArgumentStack(context, v, true);
+            }
+        }
+        
+        return existing;
+    }
+    
+    /**
+     * Get whether a parameter is allowed to consume arguments.
+     * 
+     * @param i the index of the parameter
+     * @param scoped the scoped context
+     * @return true if arguments may be consumed
+     */
+    private boolean mayConsumeArguments(int i, ContextArgumentStack scoped) {
+        CommandContext context = scoped.getContext();
+        ParameterData parameter = parameters[i];
+        
+        // Flag parameters: Always consume
+        // Required non-flag parameters: Always consume
+        // Optional non-flag parameters:
+        //     - Before required parameters: Consume if there are 'left over' args
+        //     - At the end: Always consumes
+
+        if (parameter.isOptional()) {
+            if (parameter.getFlag() != null) {
+                return !parameter.isValueFlag() || context.hasFlag(parameter.getFlag());
+            } else {
+                int numberFree = context.argsLength() - scoped.position();
+                for (int j = i; j < parameters.length; j++) {
+                    if (parameters[j].isNonFlagConsumer() && !parameters[j].isOptional()) {
+                        // We already checked if the consumed count was > -1
+                        // when we created this object
+                        numberFree -= parameters[j].getConsumedCount();
+                    }
+                }
+
+                // Skip this optional parameter
+                if (numberFree < 1) {
+                    return false;
+                }
+            }
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Get the default value for a parameter.
+     * 
+     * @param i the index of the parameter
+     * @param scoped the scoped context
+     * @return a value
+     * @throws ParameterException on an error
+     * @throws CommandException on an error
+     */
+    private Object getDefaultValue(int i, ContextArgumentStack scoped) throws ParameterException, CommandException, InvocationTargetException {
+        CommandContext context = scoped.getContext();
+        ParameterData parameter = parameters[i];
+        
+        String[] defaultValue = parameter.getDefaultValue();
+        if (defaultValue != null) {
+            try {
+                return parameter.getBinding().bind(parameter, new StringArgumentStack(context, defaultValue, false), false);
+            } catch (MissingParameterException e) {
+                throw new ParametricException(
+                        "The default value of the parameter using the binding " + 
+                        parameter.getBinding().getClass() + " in the method\n" +
+                        method.toGenericString() + "\nis invalid");
+            }
+        }
+        
+        return null;
+    }
+
+    
+    /**
+     * Check to see if all arguments, including flag arguments, were consumed.
+     * 
+     * @param scoped the argument scope 
+     * @throws UnconsumedParameterException thrown if parameters were not consumed
+     */
+    private void checkUnconsumed(ContextArgumentStack scoped) throws UnconsumedParameterException {
+        CommandContext context = scoped.getContext();
+        String unconsumed;
+        String unconsumedFlags = getUnusedFlags(context);
+        
+        if ((unconsumed = scoped.getUnconsumed()) != null) {
+            throw new UnconsumedParameterException(unconsumed + " " + unconsumedFlags);
+        }
+        
+        if (unconsumedFlags != null) {
+            throw new UnconsumedParameterException(unconsumedFlags);
+        }
+    }
+    
+    /**
+     * Get any unused flag arguments.
+     * 
+     * @param context the command context
+     */
+    private String getUnusedFlags(CommandContext context) {
+        if (!anyFlags) {
+            Set<Character> unusedFlags = null;
+            for (char flag : context.getFlags()) {
+                boolean found = false;
+
+                if (legacyFlags.contains(flag)) {
+                    break;
+                }
+
+                for (ParameterData parameter : parameters) {
+                    Character paramFlag = parameter.getFlag();
+                    if (paramFlag != null && flag == paramFlag) {
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found) {
+                    if (unusedFlags == null) {
+                        unusedFlags = new HashSet<>();
+                    }
+                    unusedFlags.add(flag);
+                }
+            }
+
+            if (unusedFlags != null) {
+                StringBuilder builder = new StringBuilder();
+                for (Character flag : unusedFlags) {
+                    builder.append("-").append(flag).append(" ");
+                }
+
+                return builder.toString().trim();
+            }
+        }
+
+        return null;
+    }
+    
+    /**
      * Generate a name for a parameter.
-     *
-     * @param type       the type
+     * 
+     * @param type the type
      * @param classifier the classifier
-     * @param index      the index
+     * @param index the index
      * @return a generated name
      */
-    public static String generateName(Type type, Annotation classifier, int index) {
+    private static String generateName(Type type, Annotation classifier, int index) {
         if (classifier != null) {
             return classifier.annotationType().getSimpleName().toLowerCase();
         } else {
@@ -359,6 +476,5 @@ public class ParametricCallable extends AParametricCallable {
             }
         }
     }
-
 
 }

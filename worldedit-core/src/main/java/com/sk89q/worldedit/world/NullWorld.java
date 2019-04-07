@@ -54,7 +54,7 @@ public class NullWorld extends AbstractWorld {
 
     private static final NullWorld INSTANCE = new NullWorld();
 
-    public NullWorld() {
+    protected NullWorld() {
     }
 
     @Override
@@ -136,11 +136,6 @@ public class NullWorld extends AbstractWorld {
     @Override
     public BlockState getBlock(BlockVector3 position) {
         return BlockTypes.AIR.getDefaultState();
-    }
-
-    @Override
-    public BlockState getLazyBlock(BlockVector3 position) {
-        return getBlock(position);
     }
 
     @Override

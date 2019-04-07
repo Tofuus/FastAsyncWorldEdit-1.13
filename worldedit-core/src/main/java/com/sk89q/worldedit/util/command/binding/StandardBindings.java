@@ -34,7 +34,7 @@ import static com.sk89q.worldedit.util.command.parametric.BindingHelper.validate
 /**
  * Standard bindings that should be available to most configurations.
  */
-public final class StandardBindings {
+public final class StandardBindings extends BindingHelper {
 
     /**
      * Gets a {@link CommandContext} from a {@link ArgumentStack}.
@@ -47,49 +47,6 @@ public final class StandardBindings {
     public CommandContext getCommandContext(ArgumentStack context) {
         context.markConsumed(); // Consume entire stack
         return context.getContext();
-    }
-
-    @BindingMatch(
-            type = Annotation[].class,
-            behavior = BindingBehavior.PROVIDES,
-            consumedCount = 0,
-            provideModifiers = true,
-            provideType = true)
-    public Annotation[] getModifiers(ArgumentStack context, Annotation[] modifiers, Type type) throws ParameterException {
-        return modifiers;
-    }
-
-    @BindingMatch(
-            type = Type.class,
-            behavior = BindingBehavior.PROVIDES,
-            consumedCount = 0,
-            provideModifiers = true,
-            provideType = true)
-    public Type getType(ArgumentStack context, Annotation[] modifiers, Type type) throws ParameterException {
-        return type;
-    }
-
-    @BindingMatch(
-            type = Enum.class,
-            behavior = BindingBehavior.CONSUMES,
-            consumedCount = 1,
-            provideModifiers = true,
-            provideType = true)
-    public Enum getEnum(ArgumentStack context, Annotation[] modifiers, Type type) throws ParameterException {
-        String input = context.next();
-        Enum value;
-        try {
-            value = Enum.valueOf((Class<Enum>) type, input);
-        } catch (IllegalArgumentException ignore) {
-            try {
-                value = Enum.valueOf((Class<Enum>) type, input.toUpperCase());
-            } catch (IllegalArgumentException e) {
-                throw new ParameterException("Invalid input " + input + " for type " + type);
-            }
-        }
-        validate(value.ordinal(), modifiers);
-        validate(input, modifiers);
-        return value;
     }
     
 }

@@ -44,15 +44,14 @@ import java.util.UUID;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
-public class PlayerProxy extends AbstractPlayerActor {
+class PlayerProxy extends AbstractPlayerActor {
 
     private final Player basePlayer;
     private final Actor permActor;
     private final Actor cuiActor;
     private final World world;
-    private Vector3 offset = Vector3.ZERO;
 
-    public PlayerProxy(Player basePlayer, Actor permActor, Actor cuiActor, World world) {
+    PlayerProxy(Player basePlayer, Actor permActor, Actor cuiActor, World world) {
         checkNotNull(basePlayer);
         checkNotNull(permActor);
         checkNotNull(cuiActor);
@@ -61,16 +60,6 @@ public class PlayerProxy extends AbstractPlayerActor {
         this.permActor = permActor;
         this.cuiActor = cuiActor;
         this.world = world;
-    }
-
-    public void setOffset(Vector3 position) {
-        this.offset = position;
-    }
-
-
-    @Override
-    public BaseBlock getBlockInHand(HandSide handSide) throws WorldEditException {
-        return basePlayer.getBlockInHand(handSide);
     }
 
     @Override
@@ -105,13 +94,12 @@ public class PlayerProxy extends AbstractPlayerActor {
 
     @Override
     public BaseEntity getState() {
-        throw new UnsupportedOperationException("Can't withPropertyId() on a player");
+        throw new UnsupportedOperationException("Can't getState() on a player");
     }
 
     @Override
     public Location getLocation() {
-        Location loc = this.basePlayer.getLocation();
-        return new Location(loc.getExtent(), loc.add(offset), loc.getDirection());
+        return basePlayer.getLocation();
     }
 
     @Override
@@ -190,4 +178,3 @@ public class PlayerProxy extends AbstractPlayerActor {
         basePlayer.sendFakeBlock(pos, block);
     }
 }
-

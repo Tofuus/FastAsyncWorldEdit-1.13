@@ -62,8 +62,8 @@ import static com.google.common.base.Preconditions.checkNotNull;
  */
 public class SessionManager {
 
-    public static int EXPIRATION_GRACE = 0;
-    private static final int FLUSH_PERIOD = 1000 * 60;
+    public static int EXPIRATION_GRACE = 600000;
+    private static final int FLUSH_PERIOD = 1000 * 30;
     private static final ListeningExecutorService executorService = MoreExecutors.listeningDecorator(EvenMoreExecutors.newBoundedCachedThreadPool(0, 1, 5));
     private static final Logger log = LoggerFactory.getLogger(SessionManager.class);
     private final Timer timer = new Timer();
@@ -289,8 +289,7 @@ public class SessionManager {
                 stored.lastActive = now;
 
                 if (stored.session.compareAndResetDirty()) {
-                    // Don't save unless player disconnects
-//                    saveQueue.put(stored.key, stored.session);
+                    saveQueue.put(stored.key, stored.session);
                 }
             } else {
                 if (now - stored.lastActive > EXPIRATION_GRACE) {

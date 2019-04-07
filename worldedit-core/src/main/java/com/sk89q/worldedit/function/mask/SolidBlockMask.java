@@ -9,19 +9,12 @@ import com.sk89q.worldedit.world.block.BlockTypes;
 
 import javax.annotation.Nullable;
 
-public class SolidBlockMask extends BlockTypeMask {
-
-    public static boolean[] getTypes() {
-        boolean[] types = new boolean[BlockTypes.size()];
-        for (BlockType type : BlockTypes.values) {
-            types[type.getInternalId()] = type.getMaterial().isSolid();
-        }
-        return types;
-    }
+public class SolidBlockMask extends AbstractExtentMask {
 
     public SolidBlockMask(Extent extent) {
-        super(extent, getTypes());
+        super(extent);
     }
+
     @Override
     public boolean test(BlockVector3 vector) {
         Extent extent = getExtent();
@@ -34,6 +27,5 @@ public class SolidBlockMask extends BlockTypeMask {
     public Mask2D toMask2D() {
         return null;
     }
-
 
 }

@@ -152,7 +152,6 @@ public class ServerCUIHandler {
         structureTag.put("showboundingbox", new ByteTag((byte) 1));
         structureTag.put("id", new StringTag(BlockTypes.STRUCTURE_BLOCK.getId()));
 
-//        return BlockTypes.STRUCTURE_BLOCK.getDefaultState().toBaseBlock(new CompoundTag(structureTag));
         return BlockTypes.STRUCTURE_BLOCK.getDefaultState().toBaseBlock(new CompoundTag(structureTag));
     }
 }

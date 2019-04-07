@@ -108,15 +108,15 @@ public class BiomeTypes {
     private BiomeTypes() {
     }
 
+    private static BiomeType register(final String id) {
+        return register(new BiomeType(id));
+    }
+
+    public static BiomeType register(final BiomeType biome) {
+        return BiomeType.REGISTRY.register(biome.getId(), biome);
+    }
+
     public static @Nullable BiomeType get(final String id) {
         return BiomeType.REGISTRY.get(id);
-    }
-
-    public static BiomeType get(int internalId) {
-        return BiomeType.REGISTRY.getByInternalId(internalId);
-    }
-
-    public static Collection<BiomeType> values() {
-        return BiomeType.REGISTRY.values();
     }
 }

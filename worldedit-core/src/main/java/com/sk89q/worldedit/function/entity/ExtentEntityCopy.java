@@ -61,10 +61,10 @@ public class ExtentEntityCopy implements EntityFunction {
     /**
      * Create a new instance.
      *
-     * @param from        the from position
+     * @param from the from position
      * @param destination the destination {@code Extent}
-     * @param to          the destination position
-     * @param transform   the transformation to apply to both position and orientation
+     * @param to the destination position
+     * @param transform the transformation to apply to both position and orientation
      */
     public ExtentEntityCopy(Vector3 from, Extent destination, Vector3 to, Transform transform) {
         checkNotNull(from);
@@ -98,12 +98,12 @@ public class ExtentEntityCopy implements EntityFunction {
     @Override
     public boolean apply(Entity entity) throws WorldEditException {
         BaseEntity state = entity.getState();
-        if (state != null && state.getType() != EntityTypes.PLAYER) {
+        if (state != null) {
             Location newLocation;
             Location location = entity.getLocation();
 
             Vector3 pivot = from.round().add(0.5, 0.5, 0.5);
-            Vector3 newPosition = transform.apply(location.subtract(pivot));
+            Vector3 newPosition = transform.apply(location.toVector().subtract(pivot));
             Vector3 newDirection;
 
             newDirection = transform.isIdentity() ?
@@ -111,12 +111,13 @@ public class ExtentEntityCopy implements EntityFunction {
                     : transform.apply(location.getDirection()).subtract(transform.apply(Vector3.ZERO)).normalize();
             newLocation = new Location(destination, newPosition.add(to.round().add(0.5, 0.5, 0.5)), newDirection);
 
+            // Some entities store their position data in NBT
             state = transformNbtData(state);
 
             boolean success = destination.createEntity(newLocation, state) != null;
 
             // Remove
-            if (isRemoving()) {
+            if (isRemoving() && success) {
                 entity.remove();
             }
 
@@ -135,27 +136,22 @@ public class ExtentEntityCopy implements EntityFunction {
      */
     private BaseEntity transformNbtData(BaseEntity state) {
         CompoundTag tag = state.getNbtData();
+
         if (tag != null) {
-            boolean changed = false;
             // Handle hanging entities (paintings, item frames, etc.)
-
-            tag = tag.createBuilder().build();
-
-            Map<String, Tag> values = ReflectionUtils.getMap(tag.getValue());
-
             boolean hasTilePosition = tag.containsKey("TileX") && tag.containsKey("TileY") && tag.containsKey("TileZ");
             boolean hasDirection = tag.containsKey("Direction");
             boolean hasLegacyDirection = tag.containsKey("Dir");
             boolean hasFacing = tag.containsKey("Facing");
 
             if (hasTilePosition) {
-                changed = true;
                 Vector3 tilePosition = Vector3.at(tag.asInt("TileX"), tag.asInt("TileY"), tag.asInt("TileZ"));
                 BlockVector3 newTilePosition = transform.apply(tilePosition.subtract(from)).add(to).toBlockPoint();
 
-                values.put("TileX", new IntTag(newTilePosition.getBlockX()));
-                values.put("TileY", new IntTag(newTilePosition.getBlockY()));
-                values.put("TileZ", new IntTag(newTilePosition.getBlockZ()));
+                CompoundTagBuilder builder = tag.createBuilder()
+                        .putInt("TileX", newTilePosition.getBlockX())
+                        .putInt("TileY", newTilePosition.getBlockY())
+                        .putInt("TileZ", newTilePosition.getBlockZ());
 
                 if (hasDirection || hasLegacyDirection || hasFacing) {
                     int d;
@@ -175,36 +171,18 @@ public class ExtentEntityCopy implements EntityFunction {
 
                         if (newDirection != null) {
                             byte hangingByte = (byte) MCDirections.toHanging(newDirection);
-                            values.put("Direction", new ByteTag(hangingByte));
-                            values.put("Facing", new ByteTag(hangingByte));
-                            values.put("Dir", new ByteTag(MCDirections.toLegacyHanging(MCDirections.toHanging(newDirection))));
+                            builder.putByte("Direction", hangingByte);
+                            builder.putByte("Facing", hangingByte);
+                            builder.putByte("Dir", MCDirections.toLegacyHanging(MCDirections.toHanging(newDirection)));
                         }
                     }
                 }
-            }
 
-            ListTag rotation = tag.getListTag("Rotation");
-            if (rotation != null && rotation.getValue().size() >= 2) {
-                changed = true;
-                double yaw = Math.toRadians(rotation.getFloat(0));
-                double pitch = Math.toRadians(rotation.getFloat(1));
-
-                double xz = Math.cos(pitch);
-                Vector3 direction = Vector3.at(-xz * Math.sin(yaw), -Math.sin(pitch), xz * Math.cos(yaw));
-                direction = transform.apply(direction);
-                FloatTag yawTag = new FloatTag((float)direction.toYaw());
-                FloatTag pitchTag = new FloatTag((float)direction.toPitch());
-                values.put("Rotation", new ListTag(FloatTag.class, Arrays.asList(yawTag, pitchTag)));
-            }
-
-            if (changed) {
-                return new BaseEntity(state.getType(), tag);
+                return new BaseEntity(state.getType(), builder.build());
             }
         }
 
         return state;
     }
-
-
 
 }

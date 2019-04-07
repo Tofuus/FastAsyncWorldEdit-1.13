@@ -369,15 +369,6 @@ public final class WorldEdit {
         }
     }
 
-    public void checkMaxBrushRadius(Expression radius) throws MaxBrushRadiusException {
-        if (getConfiguration().maxBrushRadius > 0) {
-            RValue r = radius.getRoot();
-            if (r instanceof Constant && ((Constant) r).getValue() > getConfiguration().maxBrushRadius) {
-                throw new MaxBrushRadiusException();
-            }
-        }
-    }
-
     /**
      * Get a file relative to the defined working directory. If the specified
      * path is absolute, then the working directory is not used.

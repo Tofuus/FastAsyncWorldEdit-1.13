@@ -31,18 +31,7 @@ import com.sk89q.worldedit.world.block.BlockState;
 /**
  * Returns a {@link BlockStateHolder} for a given position.
  */
-@Link(clazz = UtilityCommands.class, value = "patterns")
-public interface Pattern{
-
-//    @Override
-//    default BaseBlock next(BlockVector3 position) {
-//        return new BaseBlock(apply(position));
-//    }
-//
-//    @Override
-//    default BaseBlock next(int x, int y, int z) {
-//        return new BaseBlock(apply(BlockVector3.at(x, y, z)));
-//    }
+public interface Pattern {
 
     /**
      * Return a {@link BlockStateHolder} for the given position.
@@ -52,7 +41,4 @@ public interface Pattern{
      */
     BaseBlock apply(BlockVector3 position);
 
-    default boolean apply(Extent extent, BlockVector3 get, BlockVector3 set) throws WorldEditException {
-        return extent.setBlock(set, apply(get));
-    }
 }

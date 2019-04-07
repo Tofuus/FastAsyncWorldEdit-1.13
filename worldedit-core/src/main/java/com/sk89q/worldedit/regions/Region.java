@@ -61,28 +61,28 @@ public interface Region extends Iterable<BlockVector3>, Cloneable {
      *
      * @return number of blocks
      */
-    public int getArea();
+    int getArea();
 
     /**
      * Get X-size.
      *
      * @return width
      */
-    public int getWidth();
+    int getWidth();
 
     /**
      * Get Y-size.
      *
      * @return height
      */
-    public int getHeight();
+    int getHeight();
 
     /**
      * Get Z-size.
      *
      * @return length
      */
-    public int getLength();
+    int getLength();
 
     /**
      * Expand the region.
@@ -108,25 +108,6 @@ public interface Region extends Iterable<BlockVector3>, Cloneable {
      */
     void shift(BlockVector3 change) throws RegionOperationException;
 
-    default boolean contains(int x, int y, int z) {
-        return contains(BlockVector3.at(x, y, z));
-    }
-
-    default boolean contains(int x, int z) {
-        return contains(BlockVector3.at(x, 0, z));
-    }
-
-    default boolean isGlobal() {
-        BlockVector3 pos1 = getMinimumPoint();
-        BlockVector3 pos2 = getMaximumPoint();
-        return pos1.getBlockX() == Integer.MIN_VALUE && pos1.getBlockZ() == Integer.MIN_VALUE && pos2.getBlockX() == Integer.MAX_VALUE && pos2.getBlockZ() == Integer.MAX_VALUE && pos1.getBlockY() <= 0 && pos2.getBlockY() >= 255;
-    }
-	/**
-	 * Returns true based on whether the region contains the point.
-	 *
-	 * @param position the position
-	 * @return true if contained
-	 */
     /**
      * Returns true based on whether the region contains the point.
      *
@@ -154,22 +135,21 @@ public interface Region extends Iterable<BlockVector3>, Cloneable {
      *
      * @return the world, or null
      */
-    @Nullable
-    public World getWorld();
+    @Nullable World getWorld();
 
     /**
      * Sets the world that the selection is in.
      *
      * @param world the world, which may be null
      */
-    public void setWorld(@Nullable World world);
+    void setWorld(@Nullable World world);
 
     /**
      * Make a clone of the region.
      *
      * @return a cloned version
      */
-    public Region clone();
+    Region clone();
 
     /**
      * Polygonizes a cross-section or a 2D projection of the region orthogonal to the Y axis.

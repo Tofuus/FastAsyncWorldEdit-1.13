@@ -40,79 +40,23 @@ import java.util.Set;
  */
 public abstract class BreadthFirstSearch implements Operation {
 
-    public static final BlockVector3[] DEFAULT_DIRECTIONS = new BlockVector3[6];
-    public static final BlockVector3[] DIAGONAL_DIRECTIONS;
-
-    static {
-        DEFAULT_DIRECTIONS[0] = (BlockVector3.at(0, -1, 0));
-        DEFAULT_DIRECTIONS[1] = (BlockVector3.at(0, 1, 0));
-        DEFAULT_DIRECTIONS[2] = (BlockVector3.at(-1, 0, 0));
-        DEFAULT_DIRECTIONS[3] = (BlockVector3.at(1, 0, 0));
-        DEFAULT_DIRECTIONS[4] = (BlockVector3.at(0, 0, -1));
-        DEFAULT_DIRECTIONS[5] = (BlockVector3.at(0, 0, 1));
-        List<BlockVector3> list = new ArrayList<>();
-        for (int x = -1; x <= 1; x++) {
-            for (int y = -1; y <= 1; y++) {
-                for (int z = -1; z <= 1; z++) {
-                    if (x != 0 || y != 0 || z != 0) {
-                    	BlockVector3 pos = BlockVector3.at(x, y, z);
-                        if (!list.contains(pos)) {
-                            list.add(pos);
-                        }
-                    }
-                }
-            }
-        }
-        Collections.sort(list, new Comparator<BlockVector3>() {
-            @Override
-            public int compare(BlockVector3 o1, BlockVector3 o2) {
-                return (int) Math.signum(o1.lengthSq() - o2.lengthSq());
-            }
-        });
-        DIAGONAL_DIRECTIONS = list.toArray(new BlockVector3[list.size()]);
-    }
-
     private final RegionFunction function;
-    private List<BlockVector3> directions = new ArrayList<>();
-    private BlockVectorSet visited;
-    private final MappedFaweQueue mFaweQueue;
-    private BlockVectorSet queue;
-    private int currentDepth = 0;
-    private final int maxDepth;
+    private final Queue<BlockVector3> queue = new ArrayDeque<>();
+    private final Set<BlockVector3> visited = new HashSet<>();
+    private final List<BlockVector3> directions = new ArrayList<>();
     private int affected = 0;
-    private int maxBranch = Integer.MAX_VALUE;
 
-    public BreadthFirstSearch(final RegionFunction function) {
-        this(function, Integer.MAX_VALUE);
-    }
-
-    public BreadthFirstSearch(final RegionFunction function, int maxDepth) {
-        this(function, maxDepth, null);
-    }
-
-    public BreadthFirstSearch(final RegionFunction function, int maxDepth, HasFaweQueue faweQueue) {
-        FaweQueue fq = faweQueue != null ? faweQueue.getQueue() : null;
-        this.mFaweQueue = fq instanceof MappedFaweQueue ? (MappedFaweQueue) fq : null;
-        this.queue = new BlockVectorSet();
-        this.visited = new BlockVectorSet();
+    /**
+     * Create a new instance.
+     *
+     * @param function the function to apply to visited blocks
+     */
+    protected BreadthFirstSearch(RegionFunction function) {
+        checkNotNull(function);
         this.function = function;
-        this.directions.addAll(Arrays.asList(DEFAULT_DIRECTIONS));
-        this.maxDepth = maxDepth;
+        addAxes();
     }
 
-    public void setDirections(List<BlockVector3> directions) {
-        this.directions = directions;
-    }
-
-    private IntegerTrio[] getIntDirections() {
-        IntegerTrio[] array = new IntegerTrio[directions.size()];
-        for (int i = 0; i < array.length; i++) {
-        	BlockVector3 dir = directions.get(i);
-            array[i] = new IntegerTrio(dir.getBlockX(), dir.getBlockY(), dir.getBlockZ());
-        }
-        return array;
-    }
-    
     /**
      * Get the list of directions will be visited.
      *
@@ -133,53 +77,46 @@ public abstract class BreadthFirstSearch implements Operation {
      * Add the directions along the axes as directions to visit.
      */
     protected void addAxes() {
-        directions.add(BlockVector3.at(0, -1, 0));
-        directions.add(BlockVector3.at(0, 1, 0));
-        directions.add(BlockVector3.at(-1, 0, 0));
-        directions.add(BlockVector3.at(1, 0, 0));
-        directions.add(BlockVector3.at(0, 0, -1));
-        directions.add(BlockVector3.at(0, 0, 1));
+        directions.add(BlockVector3.UNIT_MINUS_Y);
+        directions.add(BlockVector3.UNIT_Y);
+        directions.add(BlockVector3.UNIT_MINUS_X);
+        directions.add(BlockVector3.UNIT_X);
+        directions.add(BlockVector3.UNIT_MINUS_Z);
+        directions.add(BlockVector3.UNIT_Z);
     }
 
     /**
      * Add the diagonal directions as directions to visit.
      */
     protected void addDiagonal() {
-        directions.add(BlockVector3.at(1, 0, 1));
-        directions.add(BlockVector3.at(-1, 0, -1));
-        directions.add(BlockVector3.at(1, 0, -1));
-        directions.add(BlockVector3.at(-1, 0, 1));
+        directions.add(Direction.NORTHEAST.toBlockVector());
+        directions.add(Direction.SOUTHEAST.toBlockVector());
+        directions.add(Direction.SOUTHWEST.toBlockVector());
+        directions.add(Direction.NORTHWEST.toBlockVector());
     }
 
-    public void visit(final BlockVector3 pos) {
-        if (!isVisited(pos)) {
-            isVisitable(pos, pos); // Ignore this, just to initialize mask on this point
-            queue.add(pos);
-            visited.add(pos);
+    /**
+     * Add the given location to the list of locations to visit, provided
+     * that it has not been visited. The position passed to this method
+     * will still be visited even if it fails
+     * {@link #isVisitable(BlockVector3, BlockVector3)}.
+     *
+     * <p>This method should be used before the search begins, because if
+     * the position <em>does</em> fail the test, and the search has already
+     * visited it (because it is connected to another root point),
+     * the search will mark the position as "visited" and a call to this
+     * method will do nothing.</p>
+     *
+     * @param position the position
+     */
+    public void visit(BlockVector3 position) {
+        BlockVector3 blockVector = position;
+        if (!visited.contains(blockVector)) {
+            queue.add(blockVector);
+            visited.add(blockVector);
         }
     }
 
-    public void resetVisited() {
-        queue.clear();
-        visited.clear();
-        affected = 0;
-    }
-
-    public void setVisited(BlockVectorSet set) {
-        this.visited = set;
-    }
-
-    public BlockVectorSet getVisited() {
-        return visited;
-    }
-
-    public boolean isVisited(BlockVector3 pos) {
-        return visited.contains(pos);
-    }
-
-    public void setMaxBranch(int maxBranch) {
-        this.maxBranch = maxBranch;
-    }
     /**
      * Try to visit the given 'to' location.
      *
@@ -217,80 +154,28 @@ public abstract class BreadthFirstSearch implements Operation {
 
     @Override
     public Operation resume(RunContext run) throws WorldEditException {
-        MutableBlockVector3 mutable = new MutableBlockVector3();
-//        MutableBlockVector3 mutable2 = new MutableBlockVector3();
-        boolean shouldTrim = false;
-        IntegerTrio[] dirs = getIntDirections();
-        BlockVectorSet tempQueue = new BlockVectorSet();
-        BlockVectorSet chunkLoadSet = new BlockVectorSet();
-        for (currentDepth = 0; !queue.isEmpty() && currentDepth <= maxDepth; currentDepth++) {
-            if (mFaweQueue != null && Settings.IMP.QUEUE.PRELOAD_CHUNKS > 1) {
-                int cx = Integer.MIN_VALUE;
-                int cz = Integer.MIN_VALUE;
-                for (BlockVector3 from : queue) {
-                    for (IntegerTrio direction : dirs) {
-                        int x = from.getBlockX() + direction.x;
-                        int z = from.getBlockZ() + direction.z;
-                        if (cx != (cx = x >> 4) || cz != (cz = z >> 4)) {
-                            int y = from.getBlockY() + direction.y;
-                            if (y < 0 || y >= 256) {
-                                continue;
-                            }
-                            if (!visited.contains(x, y, z)) {
-                                chunkLoadSet.add(cx, 0, cz);
-                            }
-                        }
-                    }
-                }
-                for (BlockVector3 chunk : chunkLoadSet) {
-                    mFaweQueue.queueChunkLoad(chunk.getBlockX(), chunk.getBlockZ());
-                }
+        BlockVector3 position;
+        
+        while ((position = queue.poll()) != null) {
+            if (function.apply(position)) {
+                affected++;
             }
-            for (BlockVector3 from : queue) {
-                if (function.apply(from)) affected++;
-                for (int i = 0, j = 0; i < dirs.length && j < maxBranch; i++) {
-                    IntegerTrio direction = dirs[i];
-                    int y = from.getBlockY() + direction.y;
-                    if (y < 0 || y >= 256) {
-                        continue;
-                    }
-                    int x = from.getBlockX() + direction.x;
-                    int z = from.getBlockZ() + direction.z;
-                    if (!visited.contains(x, y, z)) {
-                        if (isVisitable(from, BlockVector3.at(x, y, z))) {
-                            j++;
-                            visited.add(x, y, z);
-                            tempQueue.add(x, y, z);
-                        }
-                    }
-                }
-            }
-            if (currentDepth == maxDepth) {
-                break;
-            }
-            int size = queue.size();
-            BlockVectorSet tmp = queue;
-            queue = tempQueue;
-            tmp.clear();
-            chunkLoadSet.clear();
-            tempQueue = tmp;
 
+            for (BlockVector3 dir : directions) {
+                visit(position, position.add(dir));
+            }
         }
+
         return null;
-    }
-
-    public int getDepth() {
-        return currentDepth;
-    }
-
-    @Override
-    public void addStatusMessages(List<String> messages) {
-        messages.add(BBC.VISITOR_BLOCK.format(getAffected()));
     }
 
     @Override
     public void cancel() {
     }
 
+    @Override
+    public void addStatusMessages(List<String> messages) {
+        messages.add(getAffected() + " blocks affected");
+    }
 
 }

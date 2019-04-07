@@ -50,17 +50,14 @@ public class PasteBuilder {
 
     private BlockVector3 to = BlockVector3.ZERO;
     private boolean ignoreAirBlocks;
-    private boolean ignoreBiomes;
-    private boolean ignoreEntities;
-    private RegionFunction canApply;
 
     /**
      * Create a new instance.
      *
-     * @param holder          the clipboard holder
-     * @param targetExtent    an extent
+     * @param holder the clipboard holder
+     * @param targetExtent an extent
      */
-    public PasteBuilder(ClipboardHolder holder, Extent targetExtent) {
+    PasteBuilder(ClipboardHolder holder, Extent targetExtent) {
         checkNotNull(holder);
         checkNotNull(targetExtent);
         this.clipboard = holder.getClipboard();
@@ -89,51 +86,19 @@ public class PasteBuilder {
         return this;
     }
 
-    public PasteBuilder ignoreBiomes(boolean ignoreBiomes) {
-        this.ignoreBiomes = ignoreBiomes;
-        return this;
-    }
-
-    public PasteBuilder ignoreEntities(boolean ignoreEntities) {
-        this.ignoreEntities = ignoreEntities;
-        return this;
-    }
-
-    public PasteBuilder filter(RegionFunction function) {
-        this.canApply = function;
-        return this;
-    }
-
     /**
      * Build the operation.
      *
      * @return the operation
      */
     public Operation build() {
-        Extent extent = clipboard;
-        if (!transform.isIdentity()) {
-            extent = new BlockTransformExtent2(extent, transform);
-        }
+        BlockTransformExtent extent = new BlockTransformExtent(clipboard, transform);
         ForwardExtentCopy copy = new ForwardExtentCopy(extent, clipboard.getRegion(), clipboard.getOrigin(), targetExtent, to);
         copy.setTransform(transform);
-        copy.setCopyingEntities(!ignoreEntities);
-        copy.setCopyBiomes((!ignoreBiomes) && (!(clipboard instanceof BlockArrayClipboard) || ((BlockArrayClipboard) clipboard).IMP.hasBiomes()));
-        if (this.canApply != null) {
-            copy.setFilterFunction(this.canApply);
-        }
-        if (targetExtent instanceof EditSession) {
-            Mask sourceMask = ((EditSession) targetExtent).getSourceMask();
-            if (sourceMask != null) {
-                new MaskTraverser(sourceMask).reset(extent);
-                copy.setSourceMask(sourceMask);
-                ((EditSession) targetExtent).setSourceMask(null);
-            }
-        }
         if (ignoreAirBlocks) {
             copy.setSourceMask(new ExistingBlockMask(clipboard));
         }
         return copy;
     }
-
 
 }

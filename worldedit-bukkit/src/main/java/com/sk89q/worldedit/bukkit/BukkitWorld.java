@@ -434,14 +434,9 @@ public class BukkitWorld extends AbstractWorld {
             }
         } else {
             Block bukkitBlock = getWorld().getBlockAt(position.getBlockX(), position.getBlockY(), position.getBlockZ());
-            bukkitBlock.setBlockData(BukkitAdapter.adapt(block), false);
+            bukkitBlock.setBlockData(BukkitAdapter.adapt(block), notifyAndLight);
             return true;
         }
-    }
-
-    @Override
-    public com.sk89q.worldedit.world.block.BlockState getLazyBlock(BlockVector3 position) {
-        return getBlock(position);
     }
 
     @Override

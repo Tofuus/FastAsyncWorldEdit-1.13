@@ -36,25 +36,18 @@ public class NonRisingVisitor extends RecursiveVisitor {
     /**
      * Create a new recursive visitor.
      *
-     * @param mask     the mask
+     * @param mask the mask
      * @param function the function
      */
-
     public NonRisingVisitor(Mask mask, RegionFunction function) {
-        this(mask, function, Integer.MAX_VALUE, null);
-    }
-
-    public NonRisingVisitor(Mask mask, RegionFunction function, int depth, HasFaweQueue hasFaweQueue) {
-        super(mask, function, depth, hasFaweQueue);
+        super(mask, function);
         Collection<BlockVector3> directions = getDirections();
         directions.clear();
-        directions.add(BlockVector3.at(1, 0, 0));
-        directions.add(BlockVector3.at(-1, 0, 0));
-        directions.add(BlockVector3.at(0, 0, 1));
-        directions.add(BlockVector3.at(0, 0, -1));
-        directions.add(BlockVector3.at(0, -1, 0));
+        directions.add(BlockVector3.UNIT_X);
+        directions.add(BlockVector3.UNIT_MINUS_X);
+        directions.add(BlockVector3.UNIT_Z);
+        directions.add(BlockVector3.UNIT_MINUS_Z);
+        directions.add(BlockVector3.UNIT_MINUS_Y);
     }
-
-
 
 }

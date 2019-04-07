@@ -39,13 +39,12 @@ import static com.google.common.base.Preconditions.checkNotNull;
 public class MaskingExtent extends AbstractDelegateExtent {
 
     private Mask mask;
-//    private MutableBlockVector3 mutable = new MutableBlockVector3();
 
     /**
      * Create a new instance.
      *
      * @param extent the extent
-     * @param mask   the mask
+     * @param mask the mask
      */
     public MaskingExtent(Extent extent, Mask mask) {
         super(extent);
@@ -76,17 +75,5 @@ public class MaskingExtent extends AbstractDelegateExtent {
     public <B extends BlockStateHolder<B>> boolean setBlock(BlockVector3 location, B block) throws WorldEditException {
         return mask.test(location) && super.setBlock(location, block);
     }
-
-    @Override
-    public boolean setBiome(BlockVector2 position, BiomeType biome) {
-        return mask.test(position.toBlockVector3()) && super.setBiome(position, biome);
-    }
-
-    @Override
-    public boolean setBiome(int x, int y, int z, BiomeType biome) {
-        return mask.test(BlockVector3.at(x, y, z)) && super.setBiome(x, y, z, biome);
-    }
-
-
 
 }

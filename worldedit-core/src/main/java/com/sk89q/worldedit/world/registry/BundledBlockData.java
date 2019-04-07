@@ -73,18 +73,6 @@ public class BundledBlockData {
     private void loadFromResource() throws IOException {
         GsonBuilder gsonBuilder = new GsonBuilder();
         gsonBuilder.registerTypeAdapter(Vector3.class, new VectorAdapter());
-        gsonBuilder.registerTypeAdapter(int.class, new JsonDeserializer<Integer>() {
-            @Override
-            public Integer deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
-                JsonPrimitive primitive = (JsonPrimitive) json;
-                if (primitive.isString()) {
-                    String value = primitive.getAsString();
-                    if (value.charAt(0) == '#') return Integer.parseInt(value.substring(1), 16);
-                    return Integer.parseInt(value);
-                }
-                return primitive.getAsInt();
-            }
-        });
         Gson gson = gsonBuilder.create();
         URL url = BundledBlockData.class.getResource("blocks.json");
         if (url == null) {
@@ -142,9 +130,9 @@ public class BundledBlockData {
     }
 
     public static class BlockEntry {
-        public String id;
+        private String id;
         public String localizedName;
-        public SimpleBlockMaterial material = new SimpleBlockMaterial();
+        private SimpleBlockMaterial material = new SimpleBlockMaterial();
     }
 
 }

@@ -46,7 +46,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
  * @see Clipboard
  * @see Transform
  */
-public class FlattenedClipboardTransform {
+class FlattenedClipboardTransform {
 
     private final Clipboard original;
     private final Transform transform;
@@ -54,7 +54,7 @@ public class FlattenedClipboardTransform {
     /**
      * Create a new instance.
      *
-     * @param original  the original clipboard
+     * @param original the original clipboard
      * @param transform the transform
      */
     private FlattenedClipboardTransform(Clipboard original, Transform transform) {
@@ -96,10 +96,10 @@ public class FlattenedClipboardTransform {
 
         Vector3 newMinimum = corners[0];
         Vector3 newMaximum = corners[0];
+
         for (int i = 1; i < corners.length; i++) {
-            Vector3 cbv = corners[i];
-            newMinimum = newMinimum.getMinimum(cbv);
-            newMaximum = newMaximum.getMaximum(cbv);
+            newMinimum = newMinimum.getMinimum(corners[i]);
+            newMaximum = newMaximum.getMaximum(corners[i]);
         }
 
         // After transformation, the points may not really sit on a block,
@@ -117,8 +117,7 @@ public class FlattenedClipboardTransform {
      * @return the operation
      */
     public Operation copyTo(Extent target) {
-        Extent extent = original;
-        if (transform != null && !transform.isIdentity()) extent = new BlockTransformExtent2(original, transform);
+        BlockTransformExtent extent = new BlockTransformExtent(original, transform);
         ForwardExtentCopy copy = new ForwardExtentCopy(extent, original.getRegion(), original.getOrigin(), target, original.getOrigin());
         copy.setTransform(transform);
         return copy;
@@ -127,13 +126,12 @@ public class FlattenedClipboardTransform {
     /**
      * Create a new instance to bake the transform with.
      *
-     * @param original  the original clipboard
+     * @param original the original clipboard
      * @param transform the transform
      * @return a builder
      */
     public static FlattenedClipboardTransform transform(Clipboard original, Transform transform) {
         return new FlattenedClipboardTransform(original, transform);
     }
-
 
 }

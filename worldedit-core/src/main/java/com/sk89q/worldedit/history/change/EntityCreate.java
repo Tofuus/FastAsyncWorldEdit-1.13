@@ -32,8 +32,8 @@ import static com.google.common.base.Preconditions.checkNotNull;
  */
 public class EntityCreate implements Change {
 
-    public final Location location;
-    public final BaseEntity state;
+    private final Location location;
+    private final BaseEntity state;
     private Entity entity;
 
     /**
@@ -58,10 +58,6 @@ public class EntityCreate implements Change {
             entity.remove();
             entity = null;
         }
-    }
-
-    public Entity getEntity() {
-        return entity;
     }
 
     @Override

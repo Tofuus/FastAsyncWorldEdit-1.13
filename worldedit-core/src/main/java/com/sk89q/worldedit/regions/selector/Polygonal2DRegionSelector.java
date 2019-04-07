@@ -68,11 +68,6 @@ public class Polygonal2DRegionSelector implements RegionSelector, CUIRegion {
         region = new Polygonal2DRegion(world);
     }
 
-
-    public Polygonal2DRegionSelector(Polygonal2DRegion region) {
-        this.region = region;
-    }
-
     /**
      * Create a new selector from another one.
      *
@@ -170,7 +165,7 @@ public class Polygonal2DRegionSelector implements RegionSelector, CUIRegion {
 
     @Override
     public void explainPrimarySelection(Actor player, LocalSession session, BlockVector3 pos) {
-        BBC.SELECTOR_POS.send(player, 1, pos, region.getArea());
+        player.print("Starting a new polygon at " + pos + ".");
 
         session.dispatchCUIEvent(player, new SelectionShapeEvent(getTypeID()));
         session.dispatchCUIEvent(player, new SelectionPoint2DEvent(0, pos, getArea()));
@@ -179,7 +174,7 @@ public class Polygonal2DRegionSelector implements RegionSelector, CUIRegion {
 
     @Override
     public void explainSecondarySelection(Actor player, LocalSession session, BlockVector3 pos) {
-        BBC.SELECTOR_POS.send(player, region.size(), pos, region.getArea());
+        player.print("Added point #" + region.size() + " at " + pos + ".");
 
         session.dispatchCUIEvent(player, new SelectionPoint2DEvent(region.size() - 1, pos, getArea()));
         session.dispatchCUIEvent(player, new SelectionMinMaxEvent(region.getMinimumY(), region.getMaximumY()));
@@ -284,4 +279,5 @@ public class Polygonal2DRegionSelector implements RegionSelector, CUIRegion {
     public String getLegacyTypeID() {
         return "polygon2d";
     }
+
 }
