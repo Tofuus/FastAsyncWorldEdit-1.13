@@ -42,7 +42,6 @@ import com.sk89q.worldedit.extension.input.NoMatchException;
 import com.sk89q.worldedit.extension.input.ParserContext;
 import com.sk89q.worldedit.extension.platform.Actor;
 import com.sk89q.worldedit.extension.platform.Capability;
-import com.sk89q.worldedit.extension.platform.Platform;
 import com.sk89q.worldedit.extent.inventory.BlockBag;
 import com.sk89q.worldedit.extent.inventory.SlottableBlockBag;
 import com.sk89q.worldedit.internal.registry.InputParser;
@@ -59,10 +58,8 @@ import com.sk89q.worldedit.world.block.FuzzyBlockState;
 import com.sk89q.worldedit.world.registry.LegacyMapper;
 
 import java.util.Arrays;
-import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 /**
  * Parses block input strings.
  */
@@ -248,7 +245,7 @@ public class DefaultBlockParser extends InputParser<BaseBlock> {
                 nbt = item.getNbtData();
             } else {
                 BlockType type = BlockTypes.parse(typeString.toLowerCase());
-                if (type != null) state = type.getDefaultState();
+                if (type != null) state = context.isPreferringWildcard() ? type.getFuzzyMatcher() : type.getDefaultState();
                 if (state == null) {
                     throw new NoMatchException("Does not match a valid block type: '" + input + "'");
                 }
